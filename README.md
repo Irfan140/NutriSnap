@@ -14,7 +14,36 @@ An intelligent React Native mobile application that uses AI to analyze food imag
 - 🎨 **Modern UI**: Beautiful interface built with NativeWind (TailwindCSS for React Native)
 - 📱 **Cross-Platform**: Works seamlessly on iOS and Android
 
-## 🛠️ Tech Stack
+## � Screenshots
+
+<div align="center">
+
+### Authentication
+
+<p>
+  <img src="assets/app_screenshots/SignInScreen.jpg" alt="Sign In Screen" width="250"/>
+  <img src="assets/app_screenshots/SignUpScreen.jpg" alt="Sign Up Screen" width="250"/>
+</p>
+
+### Main Features
+
+<p>
+  <img src="assets/app_screenshots/HomeScreen.jpg" alt="Home Screen" width="250"/>
+  <img src="assets/app_screenshots/ImageUpload.jpg" alt="Image Upload" width="250"/>
+  <img src="assets/app_screenshots/ProfileScreen.jpg" alt="Profile Screen" width="250"/>
+</p>
+
+### Analysis Results
+
+<p>
+  <img src="assets/app_screenshots/Nutrition_Summary.jpg" alt="Nutrition Summary" width="250"/>
+  <img src="assets/app_screenshots/Nutrition_Breakdown.jpg" alt="Nutrition Breakdown" width="250"/>
+  <img src="assets/app_screenshots/Summary.jpg" alt="Analysis Summary" width="250"/>
+</p>
+
+</div>
+
+## �🛠️ Tech Stack
 
 - **Framework**: [Expo](https://expo.dev) (~54.0)
 - **Language**: TypeScript
@@ -23,7 +52,6 @@ An intelligent React Native mobile application that uses AI to analyze food imag
 - **AI**: OpenAI GPT-4 Vision API
 - **Authentication**: Clerk
 - **Animations**: React Native Reanimated
-
 
 ## 📋 Prerequisites
 

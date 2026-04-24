@@ -1,4 +1,4 @@
-# 🍽️ Meal Analyzer
+# 🍽️ NutriSnap
 
 An intelligent React Native mobile application powered by **Groq's Llama 4 Scout Vision** model that analyzes food images and provides comprehensive nutritional information, health advice, and dietary recommendations — all for free using Groq's blazing-fast inference API.
 

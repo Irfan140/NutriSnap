@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Meal_Analyzer",
+    "name": "NutriSnap",
     "slug": "Meal_Analyzer",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -48,7 +48,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "e3281e59-00cb-4ca7-9fba-8d7966df4968"
+        "projectId": "654e722e-38f8-43fe-8193-0281eeff2799"
       }
     }
   }

@@ -13,6 +13,44 @@ An AI-powered meal analyzer with a React Native mobile app and Express backend. 
 - **Modern UI**: NativeWind (TailwindCSS for React Native)
 - **Cross-Platform**: Works on iOS and Android
 
+## � Screenshots
+
+<div align="center">
+
+
+
+
+
+
+### Authentication
+
+
+
+
+<p>
+  <img src="assets/app_screenshots/SignInScreen.jpg" alt="Sign In Screen" width="250"/>
+  <img src="assets/app_screenshots/SignUpScreen.jpg" alt="Sign Up Screen" width="250"/>
+</p>
+
+### Main Features
+
+<p>
+  <img src="assets/app_screenshots/HomeScreen.jpg" alt="Home Screen" width="250"/>
+  <img src="assets/app_screenshots/ImageUpload.jpg" alt="Image Upload" width="250"/>
+  <img src="assets/app_screenshots/ProfileScreen.jpg" alt="Profile Screen" width="250"/>
+</p>
+
+### Analysis Results
+
+<p>
+  <img src="assets/app_screenshots/Nutrition_Summary.jpg" alt="Nutrition Summary" width="250"/>
+  <img src="assets/app_screenshots/Nutrition_Breakdown.jpg" alt="Nutrition Breakdown" width="250"/>
+  <img src="assets/app_screenshots/Summary.jpg" alt="Analysis Summary" width="250"/>
+</p>
+
+</div>
+
+
 ## Tech Stack
 
 ### Mobile App
@@ -137,11 +175,3 @@ bun run dev           # Start with hot reload
 bun run start         # Start production
 ```
 
-## Building for Production
-
-```bash
-npm install -g eas-cli
-eas build:configure
-eas build --platform android
-eas build --platform ios
-```

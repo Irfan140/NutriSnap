@@ -85,7 +85,7 @@ export default function Index() {
     try {
       setLoading(true);
 
-      const res = await fetch("/api/aifood", {
+      const res = await fetch("http://localhost:3000/api/aifood.", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64Image }),

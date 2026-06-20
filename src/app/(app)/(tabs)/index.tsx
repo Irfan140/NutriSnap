@@ -85,13 +85,20 @@ export default function Index() {
     try {
       setLoading(true);
 
-      const res = await fetch("http://localhost:3000/api/aifood.", {
+      const res = await fetch(process.env.EXPO_PUBLIC_SERVER_URL!, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64Image }),
       });
 
       const data = await res.json();
+
+      if (!res.ok) {
+        const errorMsg = data.error || "Error analyzing image";
+        setResult(errorMsg);
+        alert(errorMsg);
+        return;
+      }
 
       const jsonMatch = data.message.match(/```json([\s\S]*?)```/);
       console.log("jsonMatch:", jsonMatch);
@@ -112,10 +119,12 @@ export default function Index() {
             console.log("normalized", normalized);
             setjsonData(normalized);
           }
-
-          // setjsonData(resJson);
         } catch (err) {
           console.error("JSON parse error:", err);
+          const msg = "The AI returned data in an unexpected format. Please try again with a clearer food image.";
+          setResult(msg);
+          alert(msg);
+          return;
         }
       }
 
@@ -128,7 +137,9 @@ export default function Index() {
       setResult(markdown);
     } catch (err) {
       console.error(err);
-      setResult("Error analyzing image");
+      const msg = "Error analyzing image. Please check your connection and try again.";
+      setResult(msg);
+      alert(msg);
     } finally {
       setLoading(false);
     }

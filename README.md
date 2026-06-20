@@ -1,185 +1,147 @@
-# 🍽️ NutriSnap
+# NutriSnap
 
-An intelligent React Native mobile application powered by **Groq's Llama 4 Scout Vision** model that analyzes food images and provides comprehensive nutritional information, health advice, and dietary recommendations — all for free using Groq's blazing-fast inference API.
+An AI-powered meal analyzer with a React Native mobile app and Express backend. Upload a food photo and get instant nutritional breakdown, health score, and dietary advice powered by **Groq's Llama 4 Scout Vision** model.
 
-## ✨ Features
+## Features
 
-- 📸 **Image Analysis**: Upload or capture photos of meals for instant AI-powered nutritional analysis
-- 🔢 **Detailed Nutrition Breakdown**: Get comprehensive data on calories, protein, carbs, fats, fiber, and key vitamins & minerals
-- 📊 **Health Score**: Receive a 0-100 health rating for each meal with personalized explanations
-- 💡 **Personalized Health Advice**: AI-generated recommendations based on meal composition
-- 🔄 **Alternative Suggestions**: Get healthier substitutes while maintaining similar flavors
-- 🔐 **Authentication**: Secure sign-in/sign-up with Clerk (supports email/password and Google OAuth)
-- 👤 **User Profiles**: Personalized user experience with profile management
-- 🎨 **Modern UI**: Beautiful interface built with NativeWind (TailwindCSS for React Native)
-- 📱 **Cross-Platform**: Works seamlessly on iOS and Android
+- **Image Analysis**: Upload or capture photos of meals for instant AI-powered nutritional analysis
+- **Nutrition Breakdown**: Calories, protein, carbs, fats, fiber, and key vitamins & minerals
+- **Health Score**: 0-100 rating with personalized explanations
+- **Health Advice**: AI-generated recommendations based on meal composition
+- **Alternative Suggestions**: Healthier substitutes while maintaining similar flavors
+- **Authentication**: Secure sign-in/sign-up with Clerk (email/password and Google OAuth)
+- **Modern UI**: NativeWind (TailwindCSS for React Native)
+- **Cross-Platform**: Works on iOS and Android
 
-## � Screenshots
+## Tech Stack
 
-<div align="center">
+### Mobile App
+- [Expo](https://expo.dev) (~55.0) with Expo Router
+- TypeScript
+- NativeWind (TailwindCSS for React native apps)
+- Clerk (authentication)
+- React Native Reanimated
 
-### Authentication
+### Backend Server
+- [Bun](https://bun.sh/) runtime
+- Express
+- Groq SDK (Llama 4 Scout Vision)
 
-<p>
-  <img src="assets/app_screenshots/SignInScreen.jpg" alt="Sign In Screen" width="250"/>
-  <img src="assets/app_screenshots/SignUpScreen.jpg" alt="Sign Up Screen" width="250"/>
-</p>
+## Prerequisites
 
-### Main Features
-
-<p>
-  <img src="assets/app_screenshots/HomeScreen.jpg" alt="Home Screen" width="250"/>
-  <img src="assets/app_screenshots/ImageUpload.jpg" alt="Image Upload" width="250"/>
-  <img src="assets/app_screenshots/ProfileScreen.jpg" alt="Profile Screen" width="250"/>
-</p>
-
-### Analysis Results
-
-<p>
-  <img src="assets/app_screenshots/Nutrition_Summary.jpg" alt="Nutrition Summary" width="250"/>
-  <img src="assets/app_screenshots/Nutrition_Breakdown.jpg" alt="Nutrition Breakdown" width="250"/>
-  <img src="assets/app_screenshots/Summary.jpg" alt="Analysis Summary" width="250"/>
-</p>
-
-</div>
-
-## �🛠️ Tech Stack
-
-- **Framework**: [Expo](https://expo.dev) (~54.0)
-- **Language**: TypeScript
-- **Navigation**: Expo Router (file-based routing)
-- **UI**: NativeWind (TailwindCSS for React Native)
-- **AI**: Groq API (Llama 4 Scout Vision) via [groq-sdk](https://github.com/groq/groq-typescript)
-- **Authentication**: Clerk
-- **Animations**: React Native Reanimated
-
-## 📋 Prerequisites
-
-Before you begin, ensure you have the following installed:
-
-- [Node.js](https://nodejs.org/) (v18 or higher)
-- [Bun](https://bun.sh/) or npm
+- [Node.js](https://nodejs.org/) (v18+) or [Bun](https://bun.sh/)
 - [Expo CLI](https://docs.expo.dev/get-started/installation/)
-- [Expo Go](https://expo.dev/go) app on your mobile device (for testing)
+- [Expo Go](https://expo.dev/go) app on your mobile device
 
-## 🚀 Getting Started
+## Getting Started
 
-### 1. Clone the repository
+### 1. Clone and install
 
 ```bash
 git clone <your-repository-url>
 cd Meal_Analyzer
-```
-
-### 2. Install dependencies
-
-```bash
 bun install
-# or
-npm install
 ```
 
-### 3. Set up environment variables
+### 2. Set up environment variables
 
-Create a `.env.local` file in the root directory and add your API keys:
+Create `.env.local` in the project root:
 
 ```env
-GROQ_API_KEY=your_groq_api_key_here
-EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key_here
+GROQ_API_KEY=your_groq_api_key
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_key
 ```
 
-To get your API keys:
+Get your keys:
+- **Groq**: [console.groq.com](https://console.groq.com/)
+- **Clerk**: [clerk.com](https://clerk.com/)
 
-- **Groq**: Sign up for a free API key at [console.groq.com](https://console.groq.com/)
-- **Clerk**: Create an account at [Clerk.com](https://clerk.com/)
-
-### 4. Start the development server
+### 3. Set up the backend server
 
 ```bash
-bun start
-# or
-npm start
+cd server
+bun install
+cp .env.example .env
 ```
 
-### 5. Run on your device
+Edit `server/.env` and add your `GROQ_API_KEY`.
 
-Scan the QR code with:
+### 4. Run the servers
 
-- **iOS**: Camera app
-- **Android**: Expo Go app
-
-Or run on emulator/simulator:
+In one terminal — start the backend:
 
 ```bash
-# Android
-bun android
-
-# iOS
-bun ios
+cd server
+bun run dev
 ```
 
-## 📁 Project Structure
-
-```
-Meal_Analyzer/
-├── src/
-│   ├── app/
-│   │   ├── _layout.tsx              # Root layout
-│   │   ├── (app)/                   # Authenticated routes
-│   │   │   ├── _layout.tsx
-│   │   │   ├── sign-in.tsx          # Sign in screen
-│   │   │   ├── sign-up.tsx          # Sign up screen
-│   │   │   └── (tabs)/              # Tab navigation
-│   │   │       ├── _layout.tsx
-│   │   │       ├── index.tsx        # Home/Analyzer screen
-│   │   │       └── profile.tsx      # User profile screen
-│   │   └── api/
-│   │       └── aifood+api.ts        # Groq API integration (Llama 4 Scout Vision)
-│   └── components/
-│       └── GoogSignIn.tsx           # Google OAuth component
-├── assets/
-│   └── images/                      # App icons and images
-├── app.json                         # Expo configuration
-├── package.json                     # Dependencies
-├── tsconfig.json                    # TypeScript configuration
-└── tailwind.config.js               # TailwindCSS configuration
-```
-
-## 🎯 Usage
-
-1. **Sign Up/Sign In**: Create an account or sign in with email/password or Google
-2. **Take or Upload Photo**: Choose a meal image from your gallery or take a new photo
-3. **Analyze**: The AI will process the image and provide:
-   - Nutritional breakdown
-   - Health score (0-100)
-   - Detailed health advice
-   - Alternative suggestions
-4. **Review Results**: View comprehensive analysis with visual progress indicators
-
-## 🔧 Available Scripts
+In another terminal — start the Expo app:
 
 ```bash
-bun start          # Start the Expo development server
-bun android        # Run on Android emulator/device
-bun ios            # Run on iOS simulator/device
-bun web            # Run in web browser
-bun lint           # Run ESLint
+bun expo start
 ```
 
-## 🏗️ Building for Production
+Scan the QR code with Expo Go on your device.
 
-### Using EAS Build
+> **Note**: On a physical Android device, the app connects to the server at `192.168.1.69:3000`. Update the IP in `src/app/(app)/(tabs)/index.tsx` if your local IP differs.
+
+
+
+## API
+
+### `POST /api/aifood`
+
+Analyzes a food image and returns nutritional data.
+
+**Request:**
+```json
+{
+  "image": "<base64-encoded-image>"
+}
+```
+
+**Response (200):**
+```json
+{
+  "message": "```json\n{ ... nutrition data ... }\n```\n\n## Health Advice\n..."
+}
+```
+
+**Error Responses:**
+- `400` — No image provided
+- `422` — Image does not contain food, or AI returned invalid data
+- `500` — Server error
+
+### `GET /health`
+
+Health check endpoint.
+
+**Response:**
+```json
+{ "status": "ok" }
+```
+
+## Scripts
+
+### App (root)
+```bash
+bun expo start        # Start Expo dev server
+bun android           # Run on Android
+bun ios               # Run on iOS
+bun lint              # Run ESLint
+```
+
+### Server
+```bash
+bun run dev           # Start with hot reload
+bun run start         # Start production
+```
+
+## Building for Production
 
 ```bash
-# Install EAS CLI
 npm install -g eas-cli
-
-# Configure EAS
 eas build:configure
-
-# Build for Android
 eas build --platform android
-
-# Build for iOS
 eas build --platform ios
 ```

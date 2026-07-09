@@ -51,14 +51,13 @@ export default function GoogleSignIn() {
   const onPress = useCallback(async () => {
     try {
       // Start the authentication process by calling `startSSOFlow()`
-      const { createdSessionId, setActive, signIn, signUp } =
-        await startSSOFlow({
-          strategy: "oauth_google",
-          // For web, defaults to current path
-          // For native, you must pass a scheme, like AuthSession.makeRedirectUri({ scheme, path })
-          // For more info, see https://docs.expo.dev/versions/latest/sdk/auth-session/#authsessionmakeredirecturioptions
-          redirectUrl: AuthSession.makeRedirectUri(),
-        });
+      const { createdSessionId, setActive } = await startSSOFlow({
+        strategy: "oauth_google",
+        // For web, defaults to current path
+        // For native, you must pass a scheme, like AuthSession.makeRedirectUri({ scheme, path })
+        // For more info, see https://docs.expo.dev/versions/latest/sdk/auth-session/#authsessionmakeredirecturioptions
+        redirectUrl: AuthSession.makeRedirectUri(),
+      });
 
       // If sign in was successful, set the active session
       if (createdSessionId) {
@@ -84,7 +83,7 @@ export default function GoogleSignIn() {
       // for more info on error handling
       console.error(JSON.stringify(err, null, 2));
     }
-  }, []);
+  }, [startSSOFlow]);
 
   return (
     <TouchableOpacity

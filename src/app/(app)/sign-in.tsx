@@ -126,7 +126,7 @@ export default function Page() {
           {/* Sign Up Link */}
           <View className="flex-row justify-center items-center">
             <Text className="text-gray-600 text-base">
-              Don't have an account?
+              {"Don't have an account?"}
             </Text>
             <Link href="/sign-up" asChild>
               <TouchableOpacity className="ml-2">

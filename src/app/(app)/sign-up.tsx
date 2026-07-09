@@ -119,7 +119,7 @@ export default function SignUpScreen() {
                 Verify Your Email
               </Text>
               <Text className="text-gray-600 text-center text-base">
-                We've sent a verification code to your email
+                {"We've sent a verification code to your email"}
               </Text>
             </View>
 
@@ -156,7 +156,7 @@ export default function SignUpScreen() {
             {/* Back to Sign Up Link */}
             <View className="flex-row justify-center items-center">
               <Text className="text-gray-600 text-base">
-                Didn't receive the code?
+                {"Didn't receive the code?"}
               </Text>
               <TouchableOpacity
                 className="ml-2"

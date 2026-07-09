@@ -1,100 +1,88 @@
 # NutriSnap
 
-An AI-powered meal analyzer with a React Native mobile app and Express backend. Upload a food photo and get instant nutritional breakdown, health score, and dietary advice powered by **Groq's Llama 4 Scout Vision** model.
+An AI-powered meal analyzer with a React Native mobile app and Express backend. Upload a food photo and get an instant nutritional breakdown, health score, and dietary advice powered by Groq's Llama 4 Scout Vision model.
 
 ## Features
 
-- **Image Analysis**: Upload or capture photos of meals for instant AI-powered nutritional analysis
-- **Nutrition Breakdown**: Calories, protein, carbs, fats, fiber, and key vitamins & minerals
+- **Image Analysis**: Upload meal photos for AI-powered nutritional analysis
+- **Nutrition Breakdown**: Calories, protein, carbs, fats, fiber, and key vitamins and minerals
 - **Health Score**: 0-100 rating with personalized explanations
 - **Health Advice**: AI-generated recommendations based on meal composition
 - **Alternative Suggestions**: Healthier substitutes while maintaining similar flavors
-- **Authentication**: Secure sign-in/sign-up with Clerk (email/password and Google OAuth)
-- **Modern UI**: NativeWind (TailwindCSS for React Native)
+- **Authentication**: Clerk sign-in/sign-up with email/password and Google OAuth
+- **Modern UI**: NativeWind, TailwindCSS for React Native
 - **Cross-Platform**: Works on iOS and Android
 
-## � Screenshots
+## Screenshots
 
 <div align="center">
 
-
-
-
-
-
 ### Authentication
 
-
-
-
 <p>
-  <img src="assets/app_screenshots/SignInScreen.jpg" alt="Sign In Screen" width="250"/>
-  <img src="assets/app_screenshots/SignUpScreen.jpg" alt="Sign Up Screen" width="250"/>
+  <img src="docs/app_screenshots/SignInScreen.jpg" alt="Sign In Screen" width="250"/>
+  <img src="docs/app_screenshots/SignUpScreen.jpg" alt="Sign Up Screen" width="250"/>
 </p>
 
 ### Main Features
 
 <p>
-  <img src="assets/app_screenshots/HomeScreen.jpg" alt="Home Screen" width="250"/>
-  <img src="assets/app_screenshots/ImageUpload.jpg" alt="Image Upload" width="250"/>
-  <img src="assets/app_screenshots/ProfileScreen.jpg" alt="Profile Screen" width="250"/>
+  <img src="docs/app_screenshots/HomeScreen.jpg" alt="Home Screen" width="250"/>
+  <img src="docs/app_screenshots/ImageUpload.jpg" alt="Image Upload" width="250"/>
+  <img src="docs/app_screenshots/ProfileScreen.jpg" alt="Profile Screen" width="250"/>
 </p>
 
 ### Analysis Results
 
 <p>
-  <img src="assets/app_screenshots/Nutrition_Summary.jpg" alt="Nutrition Summary" width="250"/>
-  <img src="assets/app_screenshots/Nutrition_Breakdown.jpg" alt="Nutrition Breakdown" width="250"/>
-  <img src="assets/app_screenshots/Summary.jpg" alt="Analysis Summary" width="250"/>
+  <img src="docs/app_screenshots/Nutrition_Summary.jpg" alt="Nutrition Summary" width="250"/>
+  <img src="docs/app_screenshots/Nutrition_Breakdown.jpg" alt="Nutrition Breakdown" width="250"/>
+  <img src="docs/app_screenshots/Summary.jpg" alt="Analysis Summary" width="250"/>
 </p>
 
 </div>
 
-
 ## Tech Stack
 
 ### Mobile App
-- [Expo](https://expo.dev) (~55.0) with Expo Router
+
+- [Expo](https://expo.dev) with Expo Router
 - TypeScript
-- NativeWind (TailwindCSS for React native apps)
-- Clerk (authentication)
+- NativeWind
+- Clerk authentication
 - React Native Reanimated
 
 ### Backend Server
+
 - [Bun](https://bun.sh/) runtime
 - Express
-- Groq SDK (Llama 4 Scout Vision)
+- Groq SDK
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+) or [Bun](https://bun.sh/)
-- [Expo CLI](https://docs.expo.dev/get-started/installation/)
+- [Node.js](https://nodejs.org/) v18+
+- [Bun](https://bun.sh/)
 - [Expo Go](https://expo.dev/go) app on your mobile device
 
 ## Getting Started
 
-### 1. Clone and install
+### 1. Clone the repository
 
 ```bash
 git clone <your-repository-url>
-cd Meal_Analyzer
-bun install
+cd NutriSnap
 ```
 
-### 2. Set up environment variables
+### 2. Configure the mobile app
 
-Create `.env.local` in the project root:
+Create `mobile/.env.local`:
 
 ```env
-GROQ_API_KEY=your_groq_api_key
 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_key
+EXPO_PUBLIC_SERVER_URL=http://your-local-ip:3000
 ```
 
-Get your keys:
-- **Groq**: [console.groq.com](https://console.groq.com/)
-- **Clerk**: [clerk.com](https://clerk.com/)
-
-### 3. Set up the backend server
+### 3. Configure the backend server
 
 ```bash
 cd server
@@ -104,26 +92,24 @@ cp .env.example .env
 
 Edit `server/.env` and add your `GROQ_API_KEY`.
 
-### 4. Run the servers
-
-In one terminal — start the backend:
+### 4. Run the backend
 
 ```bash
 cd server
 bun run dev
 ```
 
-In another terminal — start the Expo app:
+### 5. Run the mobile app
 
 ```bash
-bun expo start
+cd mobile
+npm install
+npm run start -- -c
 ```
 
 Scan the QR code with Expo Go on your device.
 
-> **Note**: On a physical Android device, the app connects to the server at `192.168.1.69:3000`. Update the IP in `src/app/(app)/(tabs)/index.tsx` if your local IP differs.
-
-
+> On a physical Android device, set `EXPO_PUBLIC_SERVER_URL` in `mobile/.env.local` to your computer's LAN IP, for example `http://192.168.1.69:3000`.
 
 ## API
 
@@ -131,47 +117,52 @@ Scan the QR code with Expo Go on your device.
 
 Analyzes a food image and returns nutritional data.
 
-**Request:**
+Request:
+
 ```json
 {
   "image": "<base64-encoded-image>"
 }
 ```
 
-**Response (200):**
+Response:
+
 ```json
 {
   "message": "```json\n{ ... nutrition data ... }\n```\n\n## Health Advice\n..."
 }
 ```
 
-**Error Responses:**
-- `400` — No image provided
-- `422` — Image does not contain food, or AI returned invalid data
-- `500` — Server error
+Error responses:
+
+- `400`: No image provided
+- `422`: Image does not contain food, or AI returned invalid data
+- `500`: Server error
 
 ### `GET /health`
 
 Health check endpoint.
 
-**Response:**
 ```json
 { "status": "ok" }
 ```
 
 ## Scripts
 
-### App (root)
+### Mobile App
+
 ```bash
-bun expo start        # Start Expo dev server
-bun android           # Run on Android
-bun ios               # Run on iOS
-bun lint              # Run ESLint
+cd mobile
+npm run start -- -c
+npm run android
+npm run ios
+npm run lint
 ```
 
 ### Server
-```bash
-bun run dev           # Start with hot reload
-bun run start         # Start production
-```
 
+```bash
+cd server
+bun run dev
+bun run start
+```

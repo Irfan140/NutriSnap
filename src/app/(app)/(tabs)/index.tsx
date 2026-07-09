@@ -24,6 +24,9 @@ type NutritionData = {
   "Key vitamins & minerals": string[];
 };
 
+const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
+const ANALYZE_URL = SERVER_URL ? `${SERVER_URL}/api/aifood` : undefined;
+
 export default function Index() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [base64Image, setBase64Image] = useState<string | null>(null);
@@ -81,11 +84,17 @@ export default function Index() {
 
   const uploadToServer = async () => {
     if (!base64Image) return;
+    if (!ANALYZE_URL) {
+      const msg = "Server URL is missing. Set EXPO_PUBLIC_SERVER_URL in .env.local and restart Expo.";
+      setResult(msg);
+      alert(msg);
+      return;
+    }
 
     try {
       setLoading(true);
 
-      const res = await fetch(process.env.EXPO_PUBLIC_SERVER_URL!, {
+      const res = await fetch(ANALYZE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64Image }),
@@ -137,7 +146,7 @@ export default function Index() {
       setResult(markdown);
     } catch (err) {
       console.error(err);
-      const msg = "Error analyzing image. Please check your connection and try again.";
+      const msg = `Could not reach the analysis server at ${ANALYZE_URL}. Make sure the backend is running and your phone can reach that IP address.`;
       setResult(msg);
       alert(msg);
     } finally {

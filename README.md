@@ -35,9 +35,9 @@ An AI-powered meal analyzer with a React Native mobile app and Express backend. 
 ### Analysis Results
 
 <p>
-  <img src="docs/app_screenshots/Nutrition_Summary.jpg" alt="Nutrition Summary" width="250"/>
-  <img src="docs/app_screenshots/Nutrition_Breakdown.jpg" alt="Nutrition Breakdown" width="250"/>
-  <img src="docs/app_screenshots/Summary.jpg" alt="Analysis Summary" width="250"/>
+  <img src="docs/app_screenshots/summary_1.jpg" alt="Nutrition Summary" width="250"/>
+  <img src="docs/app_screenshots/summary_2.jpg" alt="Nutrition Breakdown" width="250"/>
+
 </p>
 
 </div>
@@ -56,7 +56,9 @@ An AI-powered meal analyzer with a React Native mobile app and Express backend. 
 
 - [Bun](https://bun.sh/) runtime
 - Express
-- Groq SDK
+- LangChain with Groq Chat Model
+- Zod
+- dotenv
 
 ## Prerequisites
 
@@ -91,6 +93,12 @@ cp .env.example .env
 ```
 
 Edit `server/.env` and add your `GROQ_API_KEY`.
+
+```env
+PORT=3000
+NODE_ENV=development
+GROQ_API_KEY=your_groq_api_key
+```
 
 ### 4. Run the backend
 
@@ -165,4 +173,70 @@ npm run lint
 cd server
 bun run dev
 bun run start
+bun run typecheck
 ```
+
+## Backend Architecture
+
+The backend is organized by responsibility so the route layer stays thin and AI-specific behavior is isolated.
+
+```text
+server/src
+├── app.ts                         # Express app wiring
+├── server.ts                      # HTTP listener
+├── config                         # Environment and AI model setup
+├── constants                      # Shared constants
+├── controllers                    # Request/response handlers
+├── errors                         # Application error classes
+├── middleware                     # Validation, logging, async, 404, error handling
+├── parsers                        # AI output validation and response formatting
+├── prompts                        # LangChain prompt definitions
+├── routes                         # API route declarations
+├── schemas                        # Zod request and AI response schemas
+├── services                       # Business logic and AI orchestration
+├── types                          # Shared TypeScript types
+└── utils                          # Logger and image helpers
+```
+
+### Request Flow
+
+`POST /api/aifood` follows this path:
+
+```text
+route -> validation middleware -> controller -> AI service -> prompt -> ChatGroq structured output -> Zod parser -> formatted response
+```
+
+The mobile app still receives the same compatible response shape:
+
+```json
+{
+  "message": "```json\n{ ... nutrition data ... }\n```\n\n## Health Advice\n..."
+}
+```
+
+### LangChain and Structured Output
+
+The AI service uses `ChatGroq` from `@langchain/groq` through a LangChain prompt pipeline. The prompt lives in `src/prompts/nutrition.prompt.ts`, while model construction lives in `src/config/ai.ts`. The service calls the model with `withStructuredOutput(nutritionAnalysisSchema)`, so the LLM response is expected to match the Zod schema before the backend formats it for the mobile app.
+
+### Zod Validation
+
+Zod validates three boundaries:
+
+- Environment variables in `src/config/env.ts`
+- Request bodies in `src/schemas/request.schema.ts`
+- AI nutrition output in `src/schemas/nutrition.schema.ts`
+
+Invalid requests return `400`. Non-food images or invalid AI nutrition data return `422`. Unexpected server failures return `500` without exposing stack traces outside development.
+
+### Adding a New AI Endpoint
+
+To add another AI endpoint:
+
+1. Create request and response schemas in `src/schemas`.
+2. Add the prompt in `src/prompts`.
+3. Add parsing or formatting logic in `src/parsers` if the mobile response needs a specific shape.
+4. Add service logic in `src/services`.
+5. Add a controller method in `src/controllers`.
+6. Register the endpoint in `src/routes`.
+
+Keep prompts, model setup, validation, and HTTP response handling in separate files so future model providers can be swapped with minimal changes.

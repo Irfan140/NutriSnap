@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "build:dev": "eas build --profile development --platform android"
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.21",
@@ -19,6 +20,7 @@
     "expo": "^55.0.0",
     "expo-auth-session": "~55.0.16",
     "expo-constants": "~55.0.16",
+    "expo-dev-client": "~55.0.37",
     "expo-file-system": "~55.0.22",
     "expo-font": "~55.0.8",
     "expo-haptics": "~55.0.14",

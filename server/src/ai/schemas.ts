@@ -21,3 +21,6 @@ export const nutritionAnalysisSchema = z.object({
   summary: z.string().trim().default(""),
 });
 
+export type NutritionBreakdown = z.infer<typeof nutritionBreakdownSchema>;
+
+export type NutritionAnalysis = z.infer<typeof nutritionAnalysisSchema>;

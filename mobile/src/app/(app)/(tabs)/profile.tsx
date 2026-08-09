@@ -1,15 +1,11 @@
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Alert,
-  ScrollView,
-  Image,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import React from "react";
-import { Ionicons } from "@expo/vector-icons";
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
+import React from "react";
+import { Alert, Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import PrimaryButton from "@/src/components/PrimaryButton";
+import { cardShadow, colors, radius } from "@/src/theme";
 
 const Profile = () => {
   const { signOut } = useAuth();
@@ -17,95 +13,135 @@ const Profile = () => {
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: () => signOut(),
-      },
+      { text: "Cancel", style: "cancel" },
+      { text: "Sign Out", style: "destructive", onPress: () => signOut() },
     ]);
   };
 
-  const getUserAvatar = () => {
-    if (user?.imageUrl) {
-      return user.imageUrl;
-    }
+  const avatarUri = user?.imageUrl ?? null;
+  const displayName = user?.fullName ?? user?.firstName ?? "NutriSnap User";
+  const email = user?.primaryEmailAddress?.emailAddress ?? "No email available";
 
-    return "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face";
-  };
+  const memberSince = (() => {
+    if (!user?.createdAt) return null;
+    const date = new Date(user.createdAt);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  })();
 
-  const getUserName = () => {
-    if (user?.fullName) {
-      return user.fullName;
-    }
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName} ${user.lastName}`;
-    }
-    return "User";
-  };
+  const initials = (() => {
+    const source = user?.fullName ?? user?.firstName ?? email;
+    const letters = source
+      .split(" ")
+      .map((part) => part.charAt(0))
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+    return letters !== "" ? letters : "N";
+  })();
 
-  const getUserEmail = () => {
-    return user?.primaryEmailAddress?.emailAddress || "No email available";
-  };
+  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="px-6 py-8">
-          {/* Header */}
-          <View className="mb-8">
-            <Text className="text-3xl font-bold text-gray-800 text-center mb-2">
-              Profile
-            </Text>
-          </View>
-
-          {/* User Profile Card */}
-          <View className="bg-white rounded-3xl shadow-lg shadow-gray-200 p-6 mb-6">
-            {/* Avatar and Basic Info */}
-            <View className="items-center mb-6">
-              <View className="relative mb-4">
-                <Image
-                  source={{ uri: getUserAvatar() }}
-                  className="w-24 h-24 rounded-full"
-                  resizeMode="cover"
-                />
-                <TouchableOpacity className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-2">
-                  <Ionicons name="camera" size={16} color="white" />
-                </TouchableOpacity>
-              </View>
-
-              <Text className="text-2xl font-bold text-gray-800 mb-1">
-                {getUserName()}
-              </Text>
-              <Text className="text-gray-600 text-base">{getUserEmail()}</Text>
-            </View>
-          </View>
-
-          {/* Sign Out Button */}
-          <TouchableOpacity
-            onPress={handleSignOut}
-            className="bg-red-500 rounded-2xl p-4 shadow-lg shadow-red-200"
-            activeOpacity={0.8}
-          >
-            <View className="flex-row items-center justify-center">
-              <Ionicons name="log-out-outline" size={20} color="white" />
-              <Text className="text-white font-semibold text-lg ml-2">
-                Sign Out
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* App Version */}
-          <View className="mt-8 items-center">
-            <Text className="text-gray-400 text-sm">App version 1.0.0</Text>
-          </View>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Profile</Text>
+          <Text style={styles.subtitle}>Manage your account details</Text>
         </View>
+
+        <View style={styles.card}>
+          <View style={styles.avatarRing}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback]}>
+                <Text style={styles.avatarInitials}>{initials}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.name}>{displayName}</Text>
+          <Text style={styles.email}>{email}</Text>
+          {memberSince ? (
+            <View style={styles.memberChip}>
+              <Ionicons name="calendar-outline" size={13} color={colors.primaryDark} />
+              <Text style={styles.memberChipText}>{`Member since ${memberSince}`}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <PrimaryButton
+          label="Sign Out"
+          icon="log-out-outline"
+          variant="danger"
+          onPress={handleSignOut}
+          style={styles.signOutButton}
+        />
+
+        <Text style={styles.version}>{`NutriSnap v${appVersion}`}</Text>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
 export default Profile;
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 40 },
+  header: { marginBottom: 24 },
+  title: { fontSize: 30, fontWeight: "800", color: colors.textPrimary },
+  subtitle: { fontSize: 15, color: colors.textSecondary, marginTop: 4 },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: 28,
+    alignItems: "center",
+    ...cardShadow,
+    marginBottom: 24,
+  },
+  avatarRing: {
+    padding: 5,
+    borderRadius: radius.full,
+    backgroundColor: colors.primarySoft,
+    marginBottom: 16,
+  },
+  avatar: { width: 96, height: 96, borderRadius: radius.full },
+  avatarFallback: {
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitials: { fontSize: 32, fontWeight: "800", color: colors.white },
+  name: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: colors.textPrimary,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  email: { fontSize: 15, color: colors.textSecondary, textAlign: "center" },
+  memberChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    marginTop: 14,
+  },
+  memberChipText: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: colors.primaryDark,
+    marginLeft: 6,
+  },
+  signOutButton: { marginBottom: 24 },
+  version: { textAlign: "center", fontSize: 13, color: colors.textMuted },
+});

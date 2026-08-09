@@ -3,8 +3,10 @@ import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -12,32 +14,64 @@ import {
 import { AnimatedCircularProgress } from "react-native-circular-progress";
 import Markdown, { MarkdownIt } from "react-native-markdown-display";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-type NutritionData = {
-  Calories: number;
-  Protein: number;
-  Carbohydrates: number;
-  Fat: number;
-  Fiber: number;
-  Explanation: string;
-  "Health Score": number;
-  "Key vitamins & minerals": string[];
-};
+import PrimaryButton from "@/src/components/PrimaryButton";
+import {
+  analyzeResponseSchema,
+  apiErrorSchema,
+  extractJsonBlock,
+  extractMarkdown,
+  hasJsonBlock,
+  parseNutritionData,
+  type NutritionData,
+} from "@/src/lib/nutrition";
+import { cardShadow, colors, healthScoreColor, radius, scoreLabel } from "@/src/theme";
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
 const ANALYZE_URL = SERVER_URL ? `${SERVER_URL}/api/aifood` : undefined;
 
-export default function Index() {
+interface MacroRowProps {
+  icon: keyof typeof Ionicons.glyphMap;
+  tint: string;
+  label: string;
+  value: string;
+}
+
+function MacroRow({ icon, tint, label, value }: MacroRowProps) {
+  return (
+    <View style={styles.macroRow}>
+      <View style={[styles.macroIcon, { backgroundColor: `${tint}1F` }]}>
+        <Ionicons name={icon} size={18} color={tint} />
+      </View>
+      <Text style={styles.macroLabel}>{label}</Text>
+      <Text style={styles.macroValue}>{value}</Text>
+    </View>
+  );
+}
+
+export default function HomeScreen() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [base64Image, setBase64Image] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string>("");
-  const [jsonData, setjsonData] = useState<NutritionData | null>(null);
+  const [markdown, setMarkdown] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [nutrition, setNutrition] = useState<NutritionData | null>(null);
+
+  const resetResults = () => {
+    setMarkdown("");
+    setErrorMessage(null);
+    setNutrition(null);
+  };
+
+  const showFailure = (message: string) => {
+    setErrorMessage(message);
+    setMarkdown("");
+    setNutrition(null);
+  };
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      alert("Permission required to access the photo library.");
+      Alert.alert("Permission required", "Permission is required to access the photo library.");
       return;
     }
 
@@ -48,51 +82,22 @@ export default function Index() {
     });
 
     if (!result.canceled) {
-      console.log("first");
       setSelectedImage(result.assets[0].uri);
       setBase64Image(result.assets[0].base64 || null);
-      setResult("");
-      setjsonData(null);
+      resetResults();
     }
   };
-
-  function normalizeJsonData(data: any): NutritionData | null {
-    if (!data) return null;
-
-    let vitamins: string[] = [];
-
-    if (Array.isArray(data["Key vitamins & minerals"])) {
-      vitamins = data["Key vitamins & minerals"];
-    } else if (typeof data["Key vitamins & minerals"] === "object") {
-      vitamins = Object.entries(data["Key vitamins & minerals"]).map(
-        ([k, v]) => `${k}: ${v}`,
-      );
-    }
-
-    return {
-      Calories: data["Calories (kcal)"] ?? data["Calories"] ?? 0,
-      Protein: data["Protein (g)"] ?? data["Protein"] ?? 0,
-      Carbohydrates: data["Carbohydrates (g)"] ?? data["Carbohydrates"] ?? 0,
-      Fat: data["Fat (g)"] ?? data["Fat"] ?? 0,
-      Fiber: data["Fiber (g)"] ?? data["Fiber"] ?? 0,
-      "Health Score": data["Health Score"] ?? 0,
-      Explanation:
-        data["Health Score Explanation"] ?? data["Explanation"] ?? "",
-      "Key vitamins & minerals": vitamins,
-    };
-  }
 
   const uploadToServer = async () => {
     if (!base64Image) return;
     if (!ANALYZE_URL) {
-      const msg = "Server URL is missing. Set EXPO_PUBLIC_SERVER_URL in .env.local and restart Expo.";
-      setResult(msg);
-      alert(msg);
+      showFailure("Server URL is missing. Set EXPO_PUBLIC_SERVER_URL in .env.local and restart Expo.");
       return;
     }
 
     try {
       setLoading(true);
+      setErrorMessage(null);
 
       const res = await fetch(ANALYZE_URL, {
         method: "POST",
@@ -100,231 +105,172 @@ export default function Index() {
         body: JSON.stringify({ image: base64Image }),
       });
 
-      const data = await res.json();
+      const payload: unknown = await res.json();
 
       if (!res.ok) {
-        const errorMsg = data.error || "Error analyzing image";
-        setResult(errorMsg);
-        alert(errorMsg);
+        const parsedError = apiErrorSchema.safeParse(payload);
+        showFailure(parsedError.success ? parsedError.data.error : "Error analyzing image");
         return;
       }
 
-      const jsonMatch = data.message.match(/```json([\s\S]*?)```/);
-      console.log("jsonMatch:", jsonMatch);
-      let resJson: NutritionData | null = null;
-
-      if (jsonMatch) {
-        let rawJson = jsonMatch[1].trim();
-
-        // Remove redundant content
-        rawJson = rawJson.replace(/\/\/.*$/gm, "");
-        console.log("rawJson:", rawJson);
-        try {
-          resJson = JSON.parse(rawJson);
-          console.log("resJson:", resJson);
-
-          if (resJson) {
-            const normalized = normalizeJsonData(resJson);
-            console.log("normalized", normalized);
-            setjsonData(normalized);
-          }
-        } catch (err) {
-          console.error("JSON parse error:", err);
-          const msg = "The AI returned data in an unexpected format. Please try again with a clearer food image.";
-          setResult(msg);
-          alert(msg);
-          return;
-        }
+      const parsedResponse = analyzeResponseSchema.safeParse(payload);
+      if (!parsedResponse.success) {
+        showFailure("The AI returned data in an unexpected format. Please try again with a clearer food image.");
+        return;
       }
 
-      const markdown = data.message
-        .replace(/```json[\s\S]*?```/, "") // remove JSON code block
-        .replace(/^### 1\..*$/m, "") // remove "### 1. Nutrition Breakdown JSON"
-        .replace(/^### 2\..*$/m, "") // remove "### 2. Structured Report"
-        .trim();
+      const message = parsedResponse.data.message;
+      const rawNutrition = extractJsonBlock(message);
 
-      setResult(markdown);
+      if (hasJsonBlock(message) && rawNutrition === null) {
+        showFailure("The AI returned data in an unexpected format. Please try again with a clearer food image.");
+        return;
+      }
+
+      if (rawNutrition !== null) {
+        const parsedNutrition = parseNutritionData(rawNutrition);
+        if (parsedNutrition === null) {
+          showFailure("The AI returned data in an unexpected format. Please try again with a clearer food image.");
+          return;
+        }
+        setNutrition(parsedNutrition);
+      }
+
+      setMarkdown(extractMarkdown(message));
     } catch (err) {
       console.error(err);
-      const msg = `Could not reach the analysis server at ${ANALYZE_URL}. Make sure the backend is running and your phone can reach that IP address.`;
-      setResult(msg);
-      alert(msg);
+      showFailure(
+        `Could not reach the analysis server at ${ANALYZE_URL}. Make sure the backend is running and your phone can reach that IP address.`,
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView style={styles.safeArea}>
       <ScrollView
-        className="flex-1 px-6 py-8"
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View className="mb-6 items-center">
-          <Text className="text-3xl font-bold text-gray-800 mb-2">
-            🍽 AI Meal Analyzer
-          </Text>
-          <Text className="text-gray-600 text-center">
-            Upload your meal and let AI give you insights
-          </Text>
-        </View>
-
-        {/* Show image */}
-        {selectedImage && (
-          <View className="items-center mb-6">
-            <Image
-              source={{ uri: selectedImage }}
-              className="w-full h-72 rounded-3xl shadow-lg shadow-gray-300"
-            />
+        <View style={styles.header}>
+          <View style={styles.headerBadge}>
+            <Ionicons name="leaf" size={22} color={colors.white} />
           </View>
-        )}
-
-        <View className="flex-row justify-between items-center space-x-2">
-          {/* Select image button */}
-          <TouchableOpacity
-            onPress={pickImage}
-            className="flex-row items-center justify-center  px-4 py-4 w-48 bg-blue-500  rounded-2xl shadow-md shadow-blue-200 "
-          >
-            <Ionicons name="image-outline" size={20} color="white" />
-            <Text className="text-white font-semibold text-lg ml-2">
-              Select Image
-            </Text>
-          </TouchableOpacity>
-
-          {/* Analyze button */}
-          <TouchableOpacity
-            onPress={uploadToServer}
-            disabled={!base64Image || loading}
-            className={`flex-row items-center justify-center px-4 py-4 w-48 rounded-2xl shadow-md  ${
-              base64Image ? "bg-green-500 shadow-green-200" : "bg-gray-300"
-            }`}
-          >
-            <Ionicons
-              name={loading ? "hourglass-outline" : "analytics-outline"}
-              size={20}
-              color="white"
-            />
-            <Text className="text-white font-semibold text-lg ml-2">
-              {loading ? "Analyzing..." : "AI Analyze"}
-            </Text>
-          </TouchableOpacity>
+          <Text style={styles.title}>NutriSnap</Text>
+          <Text style={styles.subtitle}>
+            Snap a meal and get instant nutrition insights
+          </Text>
         </View>
-        {/* Loading */}
-        {loading && (
-          <ActivityIndicator size="large" color="#3B82F6" className="mb-6" />
+
+        {selectedImage ? (
+          <View style={styles.previewCard}>
+            <Image source={{ uri: selectedImage }} style={styles.previewImage} />
+            <TouchableOpacity
+              style={styles.changePhotoButton}
+              onPress={pickImage}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="refresh" size={15} color={colors.white} />
+              <Text style={styles.changePhotoText}>Change photo</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.pickerZone}
+            onPress={pickImage}
+            activeOpacity={0.85}
+          >
+            <View style={styles.pickerIconWrap}>
+              <Ionicons name="camera-outline" size={30} color={colors.primary} />
+            </View>
+            <Text style={styles.pickerTitle}>Choose a meal photo</Text>
+            <Text style={styles.pickerHint}>
+              Pick a clear photo from your gallery to analyze
+            </Text>
+          </TouchableOpacity>
         )}
 
-        {/* Nutrition summary */}
-        {jsonData && (
-          <View className="bg-white rounded-3xl shadow-lg shadow-gray-200 p-6 mb-6">
-            <Text className="text-xl font-bold text-gray-800 mb-4">
-              Nutrition Summary
-            </Text>
+        <PrimaryButton
+          label={loading ? "Analyzing..." : "Analyze meal"}
+          icon={loading ? undefined : "sparkles-outline"}
+          onPress={uploadToServer}
+          disabled={!base64Image || loading}
+          loading={loading}
+          style={styles.analyzeButton}
+        />
 
-            {/* Health Score */}
-            <View className="items-center mb-6">
+        {loading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loadingText}>Crunching the nutrition numbers…</Text>
+          </View>
+        ) : null}
+
+        {errorMessage ? (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={20} color={colors.danger} />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
+
+        {nutrition ? (
+          <View style={styles.summaryCard}>
+            <Text style={styles.sectionTitle}>Nutrition Summary</Text>
+
+            <View style={styles.scoreWrap}>
               <AnimatedCircularProgress
-                size={160}
-                width={14}
-                fill={jsonData["Health Score"]}
-                tintColor={
-                  jsonData["Health Score"] >= 75
-                    ? "#22C55E"
-                    : jsonData["Health Score"] >= 50
-                      ? "#FACC15"
-                      : "#EF4444"
-                }
-                backgroundColor="#E5E7EB"
+                size={150}
+                width={13}
+                fill={nutrition.healthScore}
+                tintColor={healthScoreColor(nutrition.healthScore)}
+                backgroundColor={colors.border}
+                lineCap="round"
               >
-                {(fill: any) => (
-                  <Text className="text-2xl font-bold text-gray-800">
-                    {Math.round(fill)}/100
-                  </Text>
+                {(fill: number) => (
+                  <View style={styles.scoreInner}>
+                    <Text style={styles.scoreValue}>{Math.round(fill)}</Text>
+                    <Text style={styles.scoreCaption}>/ 100</Text>
+                  </View>
                 )}
               </AnimatedCircularProgress>
+              <Text style={styles.scoreBadge}>{scoreLabel(nutrition.healthScore)}</Text>
+              {nutrition.explanation !== "" ? (
+                <Text style={styles.scoreExplanation}>{nutrition.explanation}</Text>
+              ) : null}
             </View>
 
-            {/* Nutrition facts */}
-            <View className="space-y-3">
-              <View className="flex-row items-center">
-                <Ionicons name="flame-outline" size={18} color="#F97316" />
-                <Text className="ml-2 text-gray-700">
-                  Calories: {jsonData.Calories} kcal
-                </Text>
-              </View>
-              <View className="flex-row items-center">
-                <Ionicons name="fitness-outline" size={18} color="#10B981" />
-                <Text className="ml-2 text-gray-700">
-                  Protein: {jsonData.Protein} g
-                </Text>
-              </View>
-              <View className="flex-row items-center">
-                <Ionicons name="pizza-outline" size={18} color="#EAB308" />
-                <Text className="ml-2 text-gray-700">
-                  Carbs: {jsonData.Carbohydrates} g
-                </Text>
-              </View>
-              <View className="flex-row items-center">
-                <Ionicons name="egg-outline" size={18} color="#EF4444" />
-                <Text className="ml-2 text-gray-700">
-                  Fat: {jsonData.Fat} g
-                </Text>
-              </View>
-              <View className="flex-row items-center">
-                <Ionicons name="leaf-outline" size={18} color="#22C55E" />
-                <Text className="ml-2 text-gray-700">
-                  Fiber: {jsonData.Fiber} g
-                </Text>
-              </View>
+            <View style={styles.macroList}>
+              <MacroRow icon="flame" tint="#F97316" label="Calories" value={`${nutrition.calories} kcal`} />
+              <MacroRow icon="fitness" tint="#10B981" label="Protein" value={`${nutrition.protein} g`} />
+              <MacroRow icon="pizza" tint="#EAB308" label="Carbohydrates" value={`${nutrition.carbohydrates} g`} />
+              <MacroRow icon="egg-outline" tint="#EF4444" label="Fat" value={`${nutrition.fat} g`} />
+              <MacroRow icon="leaf" tint="#22C55E" label="Fiber" value={`${nutrition.fiber} g`} />
             </View>
 
-            {/* Vitamins */}
-            <Text className="mt-6 font-semibold text-gray-800">
-              Vitamins & Minerals
-            </Text>
-            <View className="flex-row flex-wrap mt-2">
-              {jsonData["Key vitamins & minerals"].map((v, i) => (
-                <View
-                  key={i}
-                  className="flex-row items-center bg-blue-100 px-3 py-1 rounded-full mr-2 mt-2"
-                >
-                  <Ionicons name="sparkles-outline" size={14} color="#3B82F6" />
-                  <Text className="text-blue-700 text-sm ml-1">{v}</Text>
+            {nutrition.vitamins.length > 0 ? (
+              <>
+                <Text style={styles.vitaminsTitle}>Vitamins & Minerals</Text>
+                <View style={styles.vitaminChips}>
+                  {nutrition.vitamins.map((vitamin, index) => (
+                    <View key={`${vitamin}-${index}`} style={styles.vitaminChip}>
+                      <Ionicons name="sparkles" size={12} color={colors.primaryDark} />
+                      <Text style={styles.vitaminChipText}>{vitamin}</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
+              </>
+            ) : null}
           </View>
-        )}
+        ) : null}
 
-        {/* Markdown explanation */}
-        {result !== "" ? (
-          <View className="bg-white rounded-3xl shadow-md p-6">
+        {markdown !== "" ? (
+          <View style={styles.markdownCard}>
             <Markdown
-              markdownit={MarkdownIt({
-                typographer: true,
-                breaks: true,
-                linkify: true,
-              })}
-              style={{
-                body: { fontSize: 16, lineHeight: 24, color: "#374151" },
-                heading1: {
-                  fontSize: 22,
-                  fontWeight: "bold",
-                  marginTop: 20,
-                  color: "#111827",
-                },
-                heading2: {
-                  fontSize: 20,
-                  fontWeight: "600",
-                  marginTop: 16,
-                  color: "#1F2937",
-                },
-                strong: { fontWeight: "bold", color: "#111827" },
-                list_item: { marginBottom: 8 },
-              }}
+              markdownit={MarkdownIt({ typographer: true, breaks: true, linkify: true })}
+              style={markdownStyles}
             >
-              {result}
+              {markdown}
             </Markdown>
           </View>
         ) : null}
@@ -332,3 +278,212 @@ export default function Index() {
     </SafeAreaView>
   );
 }
+
+const markdownStyles = StyleSheet.create({
+  body: { fontSize: 15, lineHeight: 24, color: colors.textSecondary },
+  heading1: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginTop: 20,
+    color: colors.textPrimary,
+  },
+  heading2: {
+    fontSize: 20,
+    fontWeight: "600",
+    marginTop: 16,
+    color: colors.textPrimary,
+  },
+  strong: { fontWeight: "700", color: colors.textPrimary },
+  list_item: { marginBottom: 8 },
+});
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
+  content: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 40 },
+  header: { alignItems: "center", marginBottom: 24 },
+  headerBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  title: { fontSize: 28, fontWeight: "800", color: colors.textPrimary },
+  subtitle: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginTop: 6,
+  },
+  previewCard: { marginBottom: 16 },
+  previewImage: {
+    width: "100%",
+    height: 280,
+    borderRadius: radius.xl,
+    backgroundColor: colors.border,
+    ...cardShadow,
+  },
+  changePhotoButton: {
+    position: "absolute",
+    bottom: 14,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(17, 24, 39, 0.75)",
+    borderRadius: radius.full,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  changePhotoText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+  pickerZone: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    borderWidth: 1.5,
+    borderColor: colors.primarySoft,
+    borderStyle: "dashed",
+    alignItems: "center",
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  pickerIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.full,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  pickerTitle: { fontSize: 17, fontWeight: "700", color: colors.textPrimary },
+  pickerHint: {
+    fontSize: 13.5,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 19,
+  },
+  analyzeButton: { marginBottom: 8 },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  loadingText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: "500",
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: colors.dangerSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    padding: 16,
+    marginTop: 8,
+  },
+  errorText: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.dangerDark,
+    fontWeight: "500",
+  },
+  summaryCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: 24,
+    marginTop: 16,
+    ...cardShadow,
+  },
+  sectionTitle: {
+    fontSize: 19,
+    fontWeight: "800",
+    color: colors.textPrimary,
+    marginBottom: 20,
+  },
+  scoreWrap: { alignItems: "center", marginBottom: 24 },
+  scoreInner: { alignItems: "center" },
+  scoreValue: { fontSize: 30, fontWeight: "800", color: colors.textPrimary },
+  scoreCaption: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
+  scoreBadge: {
+    marginTop: 14,
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.primaryDark,
+  },
+  scoreExplanation: {
+    marginTop: 6,
+    fontSize: 13.5,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 19,
+  },
+  macroList: { marginBottom: 8 },
+  macroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 11,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  macroIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  macroLabel: { flex: 1, fontSize: 15, fontWeight: "600", color: colors.textSecondary },
+  macroValue: { fontSize: 15, fontWeight: "800", color: colors.textPrimary },
+  vitaminsTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    marginTop: 16,
+    marginBottom: 10,
+  },
+  vitaminChips: { flexDirection: "row", flexWrap: "wrap" },
+  vitaminChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  vitaminChipText: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: colors.primaryDark,
+    marginLeft: 5,
+  },
+  markdownCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: 24,
+    marginTop: 16,
+    ...cardShadow,
+  },
+});

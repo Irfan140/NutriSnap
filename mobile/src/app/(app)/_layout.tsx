@@ -1,15 +1,16 @@
-import { View, ActivityIndicator } from "react-native";
-import React from "react";
-import { Stack } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
+import { Stack } from "expo-router";
+import React from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { colors } from "@/src/theme";
 
 const Layout = () => {
   const { isLoaded, isSignedIn } = useAuth();
 
   if (!isLoaded) {
     return (
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator size="large" color="#0000ff" />
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -29,3 +30,12 @@ const Layout = () => {
 };
 
 export default Layout;
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+  },
+});

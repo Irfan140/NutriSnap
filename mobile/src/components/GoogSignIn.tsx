@@ -2,8 +2,9 @@ import { useSSO } from "@clerk/clerk-expo";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import React, { useCallback, useEffect } from "react";
-import { Text, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, TouchableOpacity } from "react-native";
 import { Path, Svg } from "react-native-svg";
+import { cardShadow, colors, radius } from "@/src/theme";
 
 export const useWarmUpBrowser = () => {
   useEffect(() => {
@@ -86,14 +87,30 @@ export default function GoogleSignIn() {
   }, [startSSOFlow]);
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      className="flex-row items-center justify-center bg-white border border-gray-300 rounded-lg px-6 py-3 shadow-sm active:bg-gray-50"
-    >
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.button}>
       <GoogleIcon />
-      <Text className="ml-3 text-gray-700 font-semibold text-base">
-        Sign in with Google
-      </Text>
+      <Text style={styles.label}>Sign in with Google</Text>
     </TouchableOpacity>
   );
 }
+
+const styles = StyleSheet.create({
+  button: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    height: 52,
+    paddingHorizontal: 24,
+    ...cardShadow,
+  },
+  label: {
+    marginLeft: 10,
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+});

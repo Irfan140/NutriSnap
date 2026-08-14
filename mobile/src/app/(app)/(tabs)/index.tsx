@@ -29,6 +29,7 @@ import { cardShadow, colors, healthScoreColor, radius, scoreLabel } from "@/src/
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
 const ANALYZE_URL = SERVER_URL ? `${SERVER_URL}/api/aifood` : undefined;
+const MAX_IMAGE_BASE64_LENGTH = 8 * 1024 * 1024; // ~8 MB base64 (~6 MB raw image)
 
 interface MacroRowProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -79,7 +80,7 @@ export default function HomeScreen() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      quality: 1,
+      quality: 0.6,
       base64: true,
     });
 
@@ -101,6 +102,11 @@ export default function HomeScreen() {
       setLoading(true);
       setErrorMessage(null);
 
+      if (base64Image.length > MAX_IMAGE_BASE64_LENGTH) {
+        showFailure("This image is too large to analyze. Please choose a smaller or lower-resolution photo.");
+        return;
+      }
+
       const token = await getToken();
       if (!token) {
         showFailure("Your session has expired. Please sign in again.");
@@ -117,11 +123,17 @@ export default function HomeScreen() {
         body: JSON.stringify({ image: base64Image }),
       });
 
-      const payload: unknown = await res.json();
-
       if (res.status === 401) {
         showFailure("Your session has expired. Please sign in again.");
         await signOut();
+        return;
+      }
+
+      let payload: unknown;
+      try {
+        payload = await res.json();
+      } catch {
+        showFailure(`The server returned an unexpected response (${res.status}). Please try again.`);
         return;
       }
 

@@ -34,7 +34,7 @@ export function createAiService(): AiService {
     try {
       rawAnalysis = await chain.invoke({ imageDataUri });
     } catch (error) {
-      logger.error("AI meal analysis request failed", { error });
+      logger.error({ err: error }, "AI meal analysis request failed");
       return { status: "provider-failure" };
     }
 
@@ -48,10 +48,10 @@ export function createAiService(): AiService {
       return { status: "not-food" };
     }
 
-    logger.info("AI meal analysis completed", {
-      durationMs: Math.round(performance.now() - startedAt),
-      provider: env.AI_MODEL_PROVIDER,
-    });
+    logger.info(
+      { durationMs: Math.round(performance.now() - startedAt), provider: env.AI_MODEL_PROVIDER },
+      "AI meal analysis completed",
+    );
 
     return {
       status: "success",

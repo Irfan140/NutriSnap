@@ -14,12 +14,17 @@ function isPayloadTooLargeError(error: unknown): boolean {
   return err.type === "entity.too.large" || err.status === 413;
 }
 
-export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction): void {
+export function errorHandler(error: unknown, req: Request, res: Response, _next: NextFunction): void {
   if (isPayloadTooLargeError(error)) {
     res.status(413).json({ error: "Image is too large. Please upload a smaller image." });
     return;
   }
 
-  logger.error("Unexpected server error", { error });
+  // Use the per-request child logger (with request id) when available, otherwise
+  // fall back to the shared logger (e.g. for body-parser errors that occur before
+  // the request logger middleware runs).
+  const log = req.log ?? logger;
+  log.error({ err: error, method: req.method, url: req.originalUrl }, "Unhandled server error");
+
   res.status(500).json({ error: "Internal server error" });
 }

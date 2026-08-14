@@ -1,31 +1,37 @@
-type LogContext = Record<string, unknown>;
+import { pino } from "pino";
+import { env } from "../config/env.js";
 
-function write(level: "info" | "warn" | "error", message: string, context?: LogContext): void {
-  const payload = {
-    level,
-    message,
-    timestamp: new Date().toISOString(),
-    ...(context ? { context } : {}),
-  };
+const isDevelopment = env.NODE_ENV === "development";
 
-  const line = JSON.stringify(payload);
+/**
+ * Shared Pino logger instance.
+ *
+ * - Structured JSON output in production (machine-readable).
+ * - Pretty-printed output in development via `pino-pretty`.
+ * - Sensitive fields (auth headers, cookies) are redacted.
+ */
+export const logger = pino({
+  level: env.LOG_LEVEL,
+  timestamp: pino.stdTimeFunctions.isoTime,
+  redact: {
+    paths: [
+      "req.headers.authorization",
+      "req.headers.cookie",
+      "res.headers['set-cookie']",
+    ],
+    censor: "[Redacted]",
+  },
+  ...(isDevelopment
+    ? {
+        transport: {
+          target: "pino-pretty",
+          options: {
+            colorize: true,
+            translateTime: "SYS:standard",
+          },
+        },
+      }
+    : {}),
+});
 
-  if (level === "error") {
-    console.error(line);
-    return;
-  }
-
-  if (level === "warn") {
-    console.warn(line);
-    return;
-  }
-
-  console.log(line);
-}
-
-export const logger = {
-  info: (message: string, context?: LogContext) => write("info", message, context),
-  warn: (message: string, context?: LogContext) => write("warn", message, context),
-  error: (message: string, context?: LogContext) => write("error", message, context),
-};
 

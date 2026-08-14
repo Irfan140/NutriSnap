@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isBase64Image } from "../utils/image.js";
+import { detectImageMimeType, isBase64Image, isImageTooLarge, stripImageDataUri } from "../utils/image.js";
 
 export const analyzeMealRequestSchema = z.object({
   image: z
@@ -8,7 +8,12 @@ export const analyzeMealRequestSchema = z.object({
     })
     .trim()
     .min(1, "No image provided")
-    .refine(isBase64Image, "Image must be valid base64"),
+    .refine(isBase64Image, "Image must be valid base64")
+    .refine((image) => !isImageTooLarge(image), "Image is too large. Please upload a smaller image.")
+    .refine(
+      (image) => detectImageMimeType(stripImageDataUri(image)) !== null,
+      "Image must be a JPEG, PNG, WebP, or GIF.",
+    ),
 });
 
 export type AnalyzeMealRequestBody = z.infer<typeof analyzeMealRequestSchema>;

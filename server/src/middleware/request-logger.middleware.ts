@@ -1,18 +1,27 @@
-import type { NextFunction, Request, Response } from "express";
+import type { Request, Response } from "express";
+import { pinoHttp } from "pino-http";
 import { logger } from "../utils/logger.js";
 
-export function requestLogger(req: Request, res: Response, next: NextFunction): void {
-  const startedAt = performance.now();
+/**
+ * Request logging middleware (pino-http).
+ *
+ * Logs every completed request with method, url, status code and response time.
+ * The authenticated user id is attached when available, and auth headers are
+ * redacted by the shared logger's redaction config.
+ */
+export const requestLogger = pinoHttp<Request, Response>({
+  logger,
+  autoLogging: {
+    ignore: (req) => req.url === "/health",
+  },
+  customLogLevel: (_req, res, err) => {
+    if (err || res.statusCode >= 500) return "error";
+    if (res.statusCode >= 400) return "warn";
+    return "info";
+  },
+  customProps: (req) => ({
+    userId: req.auth?.userId,
+  }),
+});
 
-  res.on("finish", () => {
-    logger.info("HTTP request completed", {
-      method: req.method,
-      path: req.originalUrl,
-      statusCode: res.statusCode,
-      durationMs: Math.round(performance.now() - startedAt),
-    });
-  });
-
-  next();
-}
 

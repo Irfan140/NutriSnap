@@ -1,3 +1,4 @@
+import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
@@ -49,6 +50,7 @@ function MacroRow({ icon, tint, label, value }: MacroRowProps) {
 }
 
 export default function HomeScreen() {
+  const { getToken, signOut } = useAuth();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [base64Image, setBase64Image] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -99,13 +101,29 @@ export default function HomeScreen() {
       setLoading(true);
       setErrorMessage(null);
 
+      const token = await getToken();
+      if (!token) {
+        showFailure("Your session has expired. Please sign in again.");
+        await signOut();
+        return;
+      }
+
       const res = await fetch(ANALYZE_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ image: base64Image }),
       });
 
       const payload: unknown = await res.json();
+
+      if (res.status === 401) {
+        showFailure("Your session has expired. Please sign in again.");
+        await signOut();
+        return;
+      }
 
       if (!res.ok) {
         const parsedError = apiErrorSchema.safeParse(payload);

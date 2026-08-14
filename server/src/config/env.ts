@@ -8,6 +8,8 @@ const envSchema = z.object({
   AI_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.3),
   AI_MODEL_PROVIDER: z.string().trim().min(1).default("groq"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  CLERK_SECRET_KEY: z.string().trim().min(1, "CLERK_SECRET_KEY is required"),
+  CLERK_PUBLISHABLE_KEY: z.string().trim().min(1, "CLERK_PUBLISHABLE_KEY is required"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

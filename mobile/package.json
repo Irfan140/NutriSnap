@@ -34,8 +34,8 @@
     "expo-symbols": "~55.0.9",
     "expo-system-ui": "~55.0.20",
     "expo-web-browser": "~55.0.18",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "react-native": "0.83.10",
     "react-native-circular-progress": "^1.4.1",
     "react-native-gesture-handler": "~2.30.0",
@@ -52,6 +52,11 @@
     "eslint": "^9.25.0",
     "eslint-config-expo": "~55.0.1",
     "typescript": "~5.9.2"
+  },
+  "expo": {
+    "install": {
+      "exclude": ["react", "react-dom"]
+    }
   },
   "private": true
 }

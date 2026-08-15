@@ -63,7 +63,7 @@ flowchart TD
     N --> O{Food analysis valid?}
     O -->|No| P[Return 422 analysis error]
     O -->|Yes| Q[Format nutrition JSON and Markdown message]
-    Q --> R[Return 200 { message }]
+    Q --> R["Return 200 { message }"]
     R --> S[Parse result on mobile]
     S --> T[Render score, macros, vitamins, advice, and alternatives]
 ```

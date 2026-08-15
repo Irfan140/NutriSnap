@@ -76,6 +76,12 @@ const config: ExpoConfig = {
     },
   },
   owner: 'irfan140',
+  updates: {
+    url: "https://u.expo.dev/d985a44e-3da0-457d-a618-aaaf8a077bf8",
+  },
+  runtimeVersion: {
+    policy: "appVersion",
+  },
 };
 
 export default config;

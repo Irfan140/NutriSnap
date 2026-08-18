@@ -5,7 +5,7 @@ NutriSnap is a mobile AI meal analyzer built with Expo and React Native. Users s
 ## Demo
 
 <p align="center">
-  <img src="docs/gif/demo.gif" alt="NutriSnap demo" width="320"/>
+  <img src="docs/app_screenshots/banner.png" alt="NutriSnap demo"/>
 </p>
 
 ## Features

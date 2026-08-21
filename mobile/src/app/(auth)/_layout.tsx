@@ -2,14 +2,15 @@ import { useAuth } from "@clerk/expo";
 import { Redirect, Stack } from "expo-router";
 import React from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { colors } from "@/src/theme";
+import { useTheme } from "@/src/theme/index";
 
 const AuthLayout = () => {
   const { isLoaded, isSignedIn } = useAuth();
+  const { colors } = useTheme();
 
   if (!isLoaded) {
     return (
-      <View style={styles.loading}>
+      <View style={[styles.loading, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -34,6 +35,5 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.background,
   },
 });

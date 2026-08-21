@@ -8,7 +8,6 @@ import {
   Image,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -16,6 +15,13 @@ import { AnimatedCircularProgress } from "react-native-circular-progress";
 import Markdown, { MarkdownIt } from "react-native-markdown-display";
 import { SafeAreaView } from "react-native-safe-area-context";
 import PrimaryButton from "@/src/components/PrimaryButton";
+import {
+  H1,
+  H3,
+  Body,
+  BodySemibold,
+  Caption,
+} from "@/src/components/Typography";
 import {
   analyzeResponseSchema,
   apiErrorSchema,
@@ -25,33 +31,45 @@ import {
   parseNutritionData,
   type NutritionData,
 } from "@/src/lib/nutrition";
-import { cardShadow, colors, healthScoreColor, radius, scoreLabel } from "@/src/theme";
+import { useTheme, radius, healthScoreColor, scoreLabel } from "@/src/theme/index";
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
 const ANALYZE_URL = SERVER_URL ? `${SERVER_URL}/api/aifood` : undefined;
-const MAX_IMAGE_BASE64_LENGTH = 8 * 1024 * 1024; // ~8 MB base64 (~6 MB raw image)
+const MAX_IMAGE_BASE64_LENGTH = 8 * 1024 * 1024;
 
 interface MacroRowProps {
+  colors: ReturnType<typeof useTheme>["colors"];
   icon: keyof typeof Ionicons.glyphMap;
   tint: string;
   label: string;
   value: string;
 }
 
-function MacroRow({ icon, tint, label, value }: MacroRowProps) {
+function MacroRow({ colors, icon, tint, label, value }: MacroRowProps) {
   return (
-    <View style={styles.macroRow}>
-      <View style={[styles.macroIcon, { backgroundColor: `${tint}1F` }]}>
+    <View
+      style={[
+        styles.macroRow,
+        { borderBottomColor: colors.border },
+      ]}
+    >
+      <View
+        style={[
+          styles.macroIcon,
+          { backgroundColor: `${tint}1F` },
+        ]}
+      >
         <Ionicons name={icon} size={18} color={tint} />
       </View>
-      <Text style={styles.macroLabel}>{label}</Text>
-      <Text style={styles.macroValue}>{value}</Text>
+      <BodySemibold style={styles.macroLabel}>{label}</BodySemibold>
+      <BodySemibold style={styles.macroValue}>{value}</BodySemibold>
     </View>
   );
 }
 
 export default function HomeScreen() {
   const { getToken, signOut } = useAuth();
+  const { colors, cardShadow, isDark } = useTheme();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [base64Image, setBase64Image] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -74,7 +92,10 @@ export default function HomeScreen() {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission required", "Permission is required to access the photo library.");
+      Alert.alert(
+        "Permission required",
+        "Permission is required to access the photo library."
+      );
       return;
     }
 
@@ -94,7 +115,9 @@ export default function HomeScreen() {
   const uploadToServer = async () => {
     if (!base64Image) return;
     if (!ANALYZE_URL) {
-      showFailure("Server URL is missing. Set EXPO_PUBLIC_SERVER_URL in .env.local and restart Expo.");
+      showFailure(
+        "Server URL is missing. Set EXPO_PUBLIC_SERVER_URL in .env.local and restart Expo."
+      );
       return;
     }
 
@@ -103,7 +126,9 @@ export default function HomeScreen() {
       setErrorMessage(null);
 
       if (base64Image.length > MAX_IMAGE_BASE64_LENGTH) {
-        showFailure("This image is too large to analyze. Please choose a smaller or lower-resolution photo.");
+        showFailure(
+          "This image is too large to analyze. Please choose a smaller or lower-resolution photo."
+        );
         return;
       }
 
@@ -133,19 +158,25 @@ export default function HomeScreen() {
       try {
         payload = await res.json();
       } catch {
-        showFailure(`The server returned an unexpected response (${res.status}). Please try again.`);
+        showFailure(
+          `The server returned an unexpected response (${res.status}). Please try again.`
+        );
         return;
       }
 
       if (!res.ok) {
         const parsedError = apiErrorSchema.safeParse(payload);
-        showFailure(parsedError.success ? parsedError.data.error : "Error analyzing image");
+        showFailure(
+          parsedError.success ? parsedError.data.error : "Error analyzing image"
+        );
         return;
       }
 
       const parsedResponse = analyzeResponseSchema.safeParse(payload);
       if (!parsedResponse.success) {
-        showFailure("The AI returned data in an unexpected format. Please try again with a clearer food image.");
+        showFailure(
+          "The AI returned data in an unexpected format. Please try again with a clearer food image."
+        );
         return;
       }
 
@@ -153,14 +184,18 @@ export default function HomeScreen() {
       const rawNutrition = extractJsonBlock(message);
 
       if (hasJsonBlock(message) && rawNutrition === null) {
-        showFailure("The AI returned data in an unexpected format. Please try again with a clearer food image.");
+        showFailure(
+          "The AI returned data in an unexpected format. Please try again with a clearer food image."
+        );
         return;
       }
 
       if (rawNutrition !== null) {
         const parsedNutrition = parseNutritionData(rawNutrition);
         if (parsedNutrition === null) {
-          showFailure("The AI returned data in an unexpected format. Please try again with a clearer food image.");
+          showFailure(
+            "The AI returned data in an unexpected format. Please try again with a clearer food image."
+          );
           return;
         }
         setNutrition(parsedNutrition);
@@ -170,54 +205,97 @@ export default function HomeScreen() {
     } catch (err) {
       console.error(err);
       showFailure(
-        `Could not reach the analysis server at ${ANALYZE_URL}. Make sure the backend is running and your phone can reach that IP address.`,
+        `Could not reach the analysis server at ${ANALYZE_URL}. Make sure the backend is running and your phone can reach that IP address.`
       );
     } finally {
       setLoading(false);
     }
   };
 
+  const markdownStyles = StyleSheet.create({
+    body: { fontSize: 15, lineHeight: 24, color: colors.textSecondary },
+    heading1: {
+      fontSize: 22,
+      fontWeight: "bold",
+      marginTop: 20,
+      color: colors.textPrimary,
+    },
+    heading2: {
+      fontSize: 20,
+      fontWeight: "600",
+      marginTop: 16,
+      color: colors.textPrimary,
+    },
+    strong: { fontWeight: "700", color: colors.textPrimary },
+    list_item: { marginBottom: 8 },
+  });
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <View style={styles.headerBadge}>
-            <Ionicons name="leaf" size={22} color={colors.white} />
+          <View
+            style={[
+              styles.headerBadge,
+              { backgroundColor: colors.primary },
+            ]}
+          >
+            <Ionicons name="leaf" size={22} color={colors.textInverse} />
           </View>
-          <Text style={styles.title}>NutriSnap</Text>
-          <Text style={styles.subtitle}>
+          <H1>NutriSnap</H1>
+          <Body align="center" style={{ marginTop: 6 }}>
             Snap a meal and get instant nutrition insights
-          </Text>
+          </Body>
         </View>
 
         {selectedImage ? (
           <View style={styles.previewCard}>
-            <Image source={{ uri: selectedImage }} style={styles.previewImage} />
+            <Image
+              source={{ uri: selectedImage }}
+              style={[
+                styles.previewImage,
+                { backgroundColor: colors.border },
+                cardShadow,
+              ]}
+            />
             <TouchableOpacity
               style={styles.changePhotoButton}
               onPress={pickImage}
               activeOpacity={0.85}
             >
-              <Ionicons name="refresh" size={15} color={colors.white} />
-              <Text style={styles.changePhotoText}>Change photo</Text>
+              <Ionicons name="refresh" size={15} color="#FFFFFF" />
+              <Caption style={{ color: "#FFFFFF", marginLeft: 6 }}>
+                Change photo
+              </Caption>
             </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity
-            style={styles.pickerZone}
+            style={[
+              styles.pickerZone,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.primarySoft,
+              },
+            ]}
             onPress={pickImage}
             activeOpacity={0.85}
           >
-            <View style={styles.pickerIconWrap}>
+            <View
+              style={[
+                styles.pickerIconWrap,
+                { backgroundColor: colors.primarySoft },
+              ]}
+            >
               <Ionicons name="camera-outline" size={30} color={colors.primary} />
             </View>
-            <Text style={styles.pickerTitle}>Choose a meal photo</Text>
-            <Text style={styles.pickerHint}>
+            <H3 style={{ marginBottom: 6 }}>Choose a meal photo</H3>
+            <Caption align="center" dim>
               Pick a clear photo from your gallery to analyze
-            </Text>
+            </Caption>
           </TouchableOpacity>
         )}
 
@@ -233,59 +311,155 @@ export default function HomeScreen() {
         {loading ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={styles.loadingText}>Crunching the nutrition numbers…</Text>
+            <BodySemibold style={{ marginLeft: 10 }}>
+              Crunching the nutrition numbers...
+            </BodySemibold>
           </View>
         ) : null}
 
         {errorMessage ? (
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={20} color={colors.danger} />
-            <Text style={styles.errorText}>{errorMessage}</Text>
+          <View
+            style={[
+              styles.errorBanner,
+              {
+                backgroundColor: colors.dangerSoft,
+                borderColor: colors.dangerDark + "20",
+              },
+            ]}
+          >
+            <Ionicons
+              name="alert-circle-outline"
+              size={20}
+              color={colors.danger}
+            />
+            <Caption
+              style={{ flex: 1, marginLeft: 10, color: colors.dangerDark }}
+            >
+              {errorMessage}
+            </Caption>
           </View>
         ) : null}
 
         {nutrition ? (
-          <View style={styles.summaryCard}>
-            <Text style={styles.sectionTitle}>Nutrition Summary</Text>
+          <View
+            style={[
+              styles.summaryCard,
+              { backgroundColor: colors.surface },
+              cardShadow,
+            ]}
+          >
+            <H3 style={{ marginBottom: 20 }}>Nutrition Summary</H3>
 
             <View style={styles.scoreWrap}>
               <AnimatedCircularProgress
                 size={150}
                 width={13}
                 fill={nutrition.healthScore}
-                tintColor={healthScoreColor(nutrition.healthScore)}
+                tintColor={healthScoreColor(nutrition.healthScore, colors)}
                 backgroundColor={colors.border}
                 lineCap="round"
               >
                 {(fill: number) => (
                   <View style={styles.scoreInner}>
-                    <Text style={styles.scoreValue}>{Math.round(fill)}</Text>
-                    <Text style={styles.scoreCaption}>/ 100</Text>
+                    <BodySemibold
+                      style={{
+                        fontSize: 30,
+                        fontWeight: "800",
+                        color: colors.textPrimary,
+                      }}
+                    >
+                      {Math.round(fill)}
+                    </BodySemibold>
+                    <Caption dim>/ 100</Caption>
                   </View>
                 )}
               </AnimatedCircularProgress>
-              <Text style={styles.scoreBadge}>{scoreLabel(nutrition.healthScore)}</Text>
+              <BodySemibold
+                style={{
+                  marginTop: 14,
+                  color: colors.primaryDark,
+                }}
+              >
+                {scoreLabel(nutrition.healthScore)}
+              </BodySemibold>
               {nutrition.explanation !== "" ? (
-                <Text style={styles.scoreExplanation}>{nutrition.explanation}</Text>
+                <Body
+                  align="center"
+                  style={{ marginTop: 6, fontSize: 13.5 }}
+                >
+                  {nutrition.explanation}
+                </Body>
               ) : null}
             </View>
 
             <View style={styles.macroList}>
-              <MacroRow icon="flame" tint="#F97316" label="Calories" value={`${nutrition.calories} kcal`} />
-              <MacroRow icon="fitness" tint="#10B981" label="Protein" value={`${nutrition.protein} g`} />
-              <MacroRow icon="pizza" tint="#EAB308" label="Carbohydrates" value={`${nutrition.carbohydrates} g`} />
-              <MacroRow icon="egg-outline" tint="#EF4444" label="Fat" value={`${nutrition.fat} g`} />
-              <MacroRow icon="leaf" tint="#22C55E" label="Fiber" value={`${nutrition.fiber} g`} />
+              <MacroRow
+                colors={colors}
+                icon="flame"
+                tint="#F97316"
+                label="Calories"
+                value={`${nutrition.calories} kcal`}
+              />
+              <MacroRow
+                colors={colors}
+                icon="fitness"
+                tint="#10B981"
+                label="Protein"
+                value={`${nutrition.protein} g`}
+              />
+              <MacroRow
+                colors={colors}
+                icon="pizza"
+                tint="#EAB308"
+                label="Carbohydrates"
+                value={`${nutrition.carbohydrates} g`}
+              />
+              <MacroRow
+                colors={colors}
+                icon="egg-outline"
+                tint="#EF4444"
+                label="Fat"
+                value={`${nutrition.fat} g`}
+              />
+              <MacroRow
+                colors={colors}
+                icon="leaf"
+                tint="#22C55E"
+                label="Fiber"
+                value={`${nutrition.fiber} g`}
+              />
             </View>
 
             {nutrition.vitamins.length > 0 ? (
               <>
-                <Text style={styles.vitaminsTitle}>Vitamins & Minerals</Text>
+                <BodySemibold
+                  style={{ marginTop: 16, marginBottom: 10 }}
+                >
+                  Vitamins & Minerals
+                </BodySemibold>
                 <View style={styles.vitaminChips}>
                   {nutrition.vitamins.map((vitamin, index) => (
-                    <View key={`${vitamin}-${index}`} style={styles.vitaminChip}>
-                      <Ionicons name="sparkles" size={12} color={colors.primaryDark} />
-                      <Text style={styles.vitaminChipText}>{vitamin}</Text>
+                    <View
+                      key={`${vitamin}-${index}`}
+                      style={[
+                        styles.vitaminChip,
+                        { backgroundColor: colors.primarySoft },
+                      ]}
+                    >
+                      <Ionicons
+                        name="sparkles"
+                        size={12}
+                        color={colors.primaryDark}
+                      />
+                      <Caption
+                        style={{
+                          fontWeight: "600",
+                          color: colors.primaryDark,
+                          marginLeft: 5,
+                        }}
+                      >
+                        {vitamin}
+                      </Caption>
                     </View>
                   ))}
                 </View>
@@ -295,9 +469,19 @@ export default function HomeScreen() {
         ) : null}
 
         {markdown !== "" ? (
-          <View style={styles.markdownCard}>
+          <View
+            style={[
+              styles.markdownCard,
+              { backgroundColor: colors.surface },
+              cardShadow,
+            ]}
+          >
             <Markdown
-              markdownit={MarkdownIt({ typographer: true, breaks: true, linkify: true })}
+              markdownit={MarkdownIt({
+                typographer: true,
+                breaks: true,
+                linkify: true,
+              })}
               style={markdownStyles}
             >
               {markdown}
@@ -309,56 +493,28 @@ export default function HomeScreen() {
   );
 }
 
-const markdownStyles = StyleSheet.create({
-  body: { fontSize: 15, lineHeight: 24, color: colors.textSecondary },
-  heading1: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginTop: 20,
-    color: colors.textPrimary,
-  },
-  heading2: {
-    fontSize: 20,
-    fontWeight: "600",
-    marginTop: 16,
-    color: colors.textPrimary,
-  },
-  strong: { fontWeight: "700", color: colors.textPrimary },
-  list_item: { marginBottom: 8 },
-});
-
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
+  safeArea: { flex: 1 },
   content: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 40 },
   header: { alignItems: "center", marginBottom: 24 },
   headerBadge: {
-    width: 48,
-    height: 48,
+    width: 52,
+    height: 52,
     borderRadius: radius.lg,
-    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
-    shadowColor: colors.primaryDark,
+    marginBottom: 12,
+    shadowColor: "#15803D",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 14,
-    elevation: 4,
-  },
-  title: { fontSize: 28, fontWeight: "800", color: colors.textPrimary },
-  subtitle: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: "center",
-    marginTop: 6,
+    elevation: 5,
   },
   previewCard: { marginBottom: 16 },
   previewImage: {
     width: "100%",
     height: 280,
     borderRadius: radius.xl,
-    backgroundColor: colors.border,
-    ...cardShadow,
   },
   changePhotoButton: {
     position: "absolute",
@@ -366,22 +522,14 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(17, 24, 39, 0.75)",
+    backgroundColor: "rgba(15, 23, 42, 0.8)",
     borderRadius: radius.full,
     paddingHorizontal: 16,
     paddingVertical: 9,
   },
-  changePhotoText: {
-    color: colors.white,
-    fontSize: 13,
-    fontWeight: "600",
-    marginLeft: 6,
-  },
   pickerZone: {
-    backgroundColor: colors.card,
     borderRadius: radius.xl,
     borderWidth: 1.5,
-    borderColor: colors.primarySoft,
     borderStyle: "dashed",
     alignItems: "center",
     paddingVertical: 36,
@@ -392,18 +540,9 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: radius.full,
-    backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 14,
-  },
-  pickerTitle: { fontSize: 17, fontWeight: "700", color: colors.textPrimary },
-  pickerHint: {
-    fontSize: 13.5,
-    color: colors.textMuted,
-    textAlign: "center",
-    marginTop: 6,
-    lineHeight: 19,
   },
   analyzeButton: { marginBottom: 8 },
   loadingRow: {
@@ -413,67 +552,27 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 4,
   },
-  loadingText: {
-    marginLeft: 10,
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: "500",
-  },
   errorBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: colors.dangerSoft,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "#FECACA",
     padding: 16,
     marginTop: 8,
   },
-  errorText: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.dangerDark,
-    fontWeight: "500",
-  },
   summaryCard: {
-    backgroundColor: colors.card,
     borderRadius: radius.xl,
     padding: 24,
     marginTop: 16,
-    ...cardShadow,
-  },
-  sectionTitle: {
-    fontSize: 19,
-    fontWeight: "800",
-    color: colors.textPrimary,
-    marginBottom: 20,
   },
   scoreWrap: { alignItems: "center", marginBottom: 24 },
   scoreInner: { alignItems: "center" },
-  scoreValue: { fontSize: 30, fontWeight: "800", color: colors.textPrimary },
-  scoreCaption: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
-  scoreBadge: {
-    marginTop: 14,
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.primaryDark,
-  },
-  scoreExplanation: {
-    marginTop: 6,
-    fontSize: 13.5,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 19,
-  },
   macroList: { marginBottom: 8 },
   macroRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 11,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
   },
   macroIcon: {
     width: 36,
@@ -483,37 +582,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
   },
-  macroLabel: { flex: 1, fontSize: 15, fontWeight: "600", color: colors.textSecondary },
-  macroValue: { fontSize: 15, fontWeight: "800", color: colors.textPrimary },
-  vitaminsTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    marginTop: 16,
-    marginBottom: 10,
-  },
+  macroLabel: { flex: 1 },
+  macroValue: {},
   vitaminChips: { flexDirection: "row", flexWrap: "wrap" },
   vitaminChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.primarySoft,
     borderRadius: radius.full,
     paddingHorizontal: 12,
     paddingVertical: 7,
     marginRight: 8,
     marginBottom: 8,
   },
-  vitaminChipText: {
-    fontSize: 12.5,
-    fontWeight: "600",
-    color: colors.primaryDark,
-    marginLeft: 5,
-  },
   markdownCard: {
-    backgroundColor: colors.card,
     borderRadius: radius.xl,
     padding: 24,
     marginTop: 16,
-    ...cardShadow,
   },
 });

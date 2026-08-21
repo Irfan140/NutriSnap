@@ -8,7 +8,6 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -16,16 +15,18 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { z } from "zod";
 import FormInput from "@/src/components/FormInput";
 import PrimaryButton from "@/src/components/PrimaryButton";
+import { H1, H2, Subtitle, Body, BodySemibold } from "@/src/components/Typography";
 import {
   fieldErrorMessage,
   signUpSchema,
   verificationCodeSchema,
 } from "@/src/lib/validation";
-import { cardShadow, colors, radius } from "@/src/theme";
+import { useTheme, radius } from "@/src/theme/index";
 
 export default function SignUpScreen() {
   const { signUp } = useSignUp();
   const { isLoaded } = useAuth();
+  const { colors, cardShadow } = useTheme();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -89,8 +90,6 @@ export default function SignUpScreen() {
       }
 
       if (signUp.status === "complete") {
-        // Finalize activates the new session, which flips the isSignedIn
-        // guard in the layout and redirects away from this screen.
         await signUp.finalize();
       } else {
         Alert.alert("Verification Failed", "Please check your code and try again");
@@ -105,7 +104,7 @@ export default function SignUpScreen() {
 
   if (pendingVerification) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -116,17 +115,17 @@ export default function SignUpScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.verifyIconWrap}>
-              <Ionicons name="mail-open-outline" size={28} color={colors.primary} />
+              <Ionicons name="mail-unread-outline" size={28} color={colors.primary} />
             </View>
+            <H2 align="center">Check your email</H2>
+            <Subtitle align="center" style={{ marginTop: 8, marginBottom: 24 }}>
+              We've sent a verification code to {email}
+            </Subtitle>
 
-            <Text style={styles.title}>Verify your email</Text>
-            <Text style={styles.subtitle}>
-              {"We've sent a 6-digit code to your inbox"}
-            </Text>
-
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
               <FormInput
                 label="Verification code"
+                icon="key-outline"
                 value={code}
                 onChangeText={setCode}
                 placeholder="000000"
@@ -142,19 +141,6 @@ export default function SignUpScreen() {
                 loading={isLoading}
               />
             </View>
-
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>{"Didn't receive the code?"}</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setCode("");
-                  setFormError(null);
-                  setPendingVerification(false);
-                }}
-              >
-                <Text style={styles.footerLink}>Try Again</Text>
-              </TouchableOpacity>
-            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -162,7 +148,7 @@ export default function SignUpScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -173,16 +159,20 @@ export default function SignUpScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.brand}>
-            <View style={styles.brandBadge}>
-              <Ionicons name="leaf" size={26} color={colors.white} />
+            <View style={[styles.brandBadge, { backgroundColor: colors.primary }]}>
+              <Ionicons name="leaf" size={26} color={colors.textInverse} />
             </View>
-            <Text style={styles.brandName}>NutriSnap</Text>
+            <BodySemibold style={{ color: colors.primary, fontSize: 18, letterSpacing: 0.5 }}>
+              NutriSnap
+            </BodySemibold>
           </View>
 
-          <Text style={styles.title}>Create account</Text>
-          <Text style={styles.subtitle}>Sign up to start analyzing your meals</Text>
+          <H1 align="center">Create account</H1>
+          <Subtitle align="center" style={styles.subtitle}>
+            Sign up to start analyzing your meals
+          </Subtitle>
 
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
             <FormInput
               label="Email address"
               icon="mail-outline"
@@ -210,10 +200,12 @@ export default function SignUpScreen() {
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Already have an account?</Text>
+            <Body>Already have an account?</Body>
             <Link href="/sign-in" asChild>
               <TouchableOpacity>
-                <Text style={styles.footerLink}>Sign In</Text>
+                <BodySemibold style={{ color: colors.primary, marginLeft: 8 }}>
+                  Sign In
+                </BodySemibold>
               </TouchableOpacity>
             </Link>
           </View>
@@ -224,7 +216,7 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
+  safeArea: { flex: 1 },
   flex: { flex: 1 },
   content: {
     flexGrow: 1,
@@ -232,67 +224,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 32,
   },
-  brand: { alignItems: "center", marginBottom: 24 },
+  brand: { alignItems: "center", marginBottom: 28 },
   brandBadge: {
-    width: 56,
-    height: 56,
+    width: 60,
+    height: 60,
     borderRadius: radius.lg,
-    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
-    shadowColor: colors.primaryDark,
+    marginBottom: 12,
+    shadowColor: "#15803D",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 14,
-    elevation: 4,
-  },
-  brandName: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: colors.primaryDark,
-    letterSpacing: 0.5,
+    elevation: 5,
   },
   verifyIconWrap: {
     alignSelf: "center",
-    width: 60,
-    height: 60,
+    width: 64,
+    height: 64,
     borderRadius: radius.full,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: "#DCFCE7",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: colors.textPrimary,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: "center",
-    marginTop: 6,
-    marginBottom: 24,
-  },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: 24,
-    ...cardShadow,
-  },
+  subtitle: { marginTop: 8, marginBottom: 28 },
+  card: { borderRadius: radius.lg, padding: 24 },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     marginTop: 24,
-  },
-  footerText: { fontSize: 15, color: colors.textSecondary },
-  footerLink: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.primary,
-    marginLeft: 8,
   },
 });

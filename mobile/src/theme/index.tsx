@@ -12,34 +12,38 @@ type ThemeMode = "system" | "light" | "dark";
 // ================================================================
 
 export const lightColors = {
-  primary: "#16A34A" as string,
-  primaryDark: "#15803D" as string,
-  primarySoft: "#DCFCE7" as string,
-  primaryMuted: "#F0FDF4" as string,
-  background: "#FAFAFA" as string,
+  primary: "#10B981" as string,
+  primaryDark: "#059669" as string,
+  primarySoft: "#D1FAE5" as string,
+  primaryMuted: "#ECFDF5" as string,
+  accent: "#6366F1" as string,
+  accentSoft: "#EEF2FF" as string,
+  background: "#F8FAFC" as string,
   surface: "#FFFFFF" as string,
-  surfaceAlt: "#F8FAFC" as string,
+  surfaceAlt: "#F1F5F9" as string,
   textPrimary: "#0F172A" as string,
   textSecondary: "#475569" as string,
   textMuted: "#94A3B8" as string,
   textInverse: "#FFFFFF" as string,
   border: "#E2E8F0" as string,
   borderLight: "#F1F5F9" as string,
-  inputBg: "#F8FAFC" as string,
-  danger: "#DC2626" as string,
-  dangerDark: "#B91C1C" as string,
+  inputBg: "#F1F5F9" as string,
+  danger: "#EF4444" as string,
+  dangerDark: "#DC2626" as string,
   dangerSoft: "#FEF2F2" as string,
-  success: "#16A34A" as string,
-  warning: "#D97706" as string,
+  success: "#10B981" as string,
+  warning: "#F59E0B" as string,
 };
 
 export type AppColors = typeof lightColors;
 
 export const darkColors: AppColors = {
-  primary: "#22C55E",
-  primaryDark: "#16A34A",
-  primarySoft: "#052E16",
+  primary: "#34D399",
+  primaryDark: "#10B981",
+  primarySoft: "#064E3B",
   primaryMuted: "#022C22",
+  accent: "#818CF8",
+  accentSoft: "#1E1B4B",
   background: "#0B1120",
   surface: "#1E293B",
   surfaceAlt: "#1A2332",
@@ -50,11 +54,11 @@ export const darkColors: AppColors = {
   border: "#334155",
   borderLight: "#1E293B",
   inputBg: "#1E293B",
-  danger: "#EF4444",
-  dangerDark: "#DC2626",
+  danger: "#F87171",
+  dangerDark: "#EF4444",
   dangerSoft: "#1C1216",
-  success: "#22C55E",
-  warning: "#F59E0B",
+  success: "#34D399",
+  warning: "#FBBF24",
 };
 
 // ================================================================
@@ -100,12 +104,12 @@ export const cardShadowDark = {
 } as const;
 
 export const buttonShadowLight = {
-  shadowColor: "#15803D", shadowOffset: { width: 0, height: 8 },
-  shadowOpacity: 0.28, shadowRadius: 16, elevation: 4,
+  shadowColor: "#059669", shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.25, shadowRadius: 16, elevation: 4,
 } as const;
 
 export const buttonShadowDark = {
-  shadowColor: "#16A34A", shadowOffset: { width: 0, height: 6 },
+  shadowColor: "#10B981", shadowOffset: { width: 0, height: 6 },
   shadowOpacity: 0.35, shadowRadius: 14, elevation: 5,
 } as const;
 

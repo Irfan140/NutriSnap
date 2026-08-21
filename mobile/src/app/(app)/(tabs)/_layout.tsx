@@ -15,10 +15,20 @@ const Layout = () => {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
+          borderTopWidth: 0.5,
+          elevation: 8,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 8,
+          height: 62,
+          paddingBottom: 8,
+          paddingTop: 6,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "600",
+          letterSpacing: 0.2,
         },
       }}
     >
@@ -28,6 +38,15 @@ const Layout = () => {
           title: "Home",
           tabBarIcon: ({ color, size }) => (
             <AntDesign name="home" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "Settings",
+          tabBarIcon: ({ color, size }) => (
+            <AntDesign name="setting" color={color} size={size} />
           ),
         }}
       />

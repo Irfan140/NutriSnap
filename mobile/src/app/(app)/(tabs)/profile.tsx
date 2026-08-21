@@ -1,11 +1,10 @@
 ﻿import { useAuth, useUser } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
-import Constants from "expo-constants";
-import React, { useCallback } from "react";
+import { router } from "expo-router";
+import React from "react";
 import {
   Alert,
   Image,
-  Linking,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -16,17 +15,10 @@ import PrimaryButton from "@/src/components/PrimaryButton";
 import { H1, H2, H3, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
 import { useTheme, radius } from "@/src/theme/index";
 
-const DEVELOPER = {
-  name: "Irfan Mehmud",
-  github: "Irfan140",
-  email: "irfanmehmud140@gmail.com",
-  githubUrl: "https://github.com/Irfan140",
-};
-
 const Profile = () => {
   const { signOut } = useAuth();
   const { user } = useUser();
-  const { colors, cardShadow, themeMode, setThemeMode } = useTheme();
+  const { colors, cardShadow } = useTheme();
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -34,18 +26,6 @@ const Profile = () => {
       { text: "Sign Out", style: "destructive", onPress: () => signOut() },
     ]);
   };
-
-  const handleOpenGitHub = useCallback(() => {
-    Linking.openURL(DEVELOPER.githubUrl).catch(() =>
-      Alert.alert("Error", "Could not open GitHub"),
-    );
-  }, []);
-
-  const handleOpenEmail = useCallback(() => {
-    Linking.openURL(`mailto:${DEVELOPER.email}`).catch(() =>
-      Alert.alert("Error", "Could not open email client"),
-    );
-  }, []);
 
   const avatarUri = user?.imageUrl ?? null;
   const displayName = user?.fullName ?? user?.firstName ?? "NutriSnap User";
@@ -69,14 +49,6 @@ const Profile = () => {
       .toUpperCase();
     return letters !== "" ? letters : "N";
   })();
-
-  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
-
-  const themeOptions: Array<{ label: string; value: "system" | "light" | "dark"; icon: keyof typeof Ionicons.glyphMap }> = [
-    { label: "System", value: "system", icon: "phone-portrait-outline" },
-    { label: "Light", value: "light", icon: "sunny-outline" },
-    { label: "Dark", value: "dark", icon: "moon-outline" },
-  ];
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -126,75 +98,47 @@ const Profile = () => {
           ) : null}
         </View>
 
+        {/* Account Info */}
         <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
-          <H3 style={styles.sectionTitle}>Appearance</H3>
-          <View style={styles.themeRow}>
-            {themeOptions.map((opt) => {
-              const isActive = themeMode === opt.value;
-              return (
-                <TouchableOpacity
-                  key={opt.value}
-                  activeOpacity={0.7}
-                  onPress={() => setThemeMode(opt.value)}
-                  style={[
-                    styles.themeOption,
-                    {
-                      backgroundColor: isActive ? colors.primary : colors.surfaceAlt,
-                      borderColor: isActive ? colors.primary : colors.border,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={opt.icon}
-                    size={20}
-                    color={isActive ? colors.textInverse : colors.textSecondary}
-                  />
-                  <Caption
-                    style={{
-                      marginTop: 6,
-                      color: isActive ? colors.textInverse : colors.textSecondary,
-                      fontWeight: isActive ? "700" : "500",
-                    }}
-                  >
-                    {opt.label}
-                  </Caption>
-                </TouchableOpacity>
-              );
-            })}
+          <H3 style={styles.sectionTitle}>Account Details</H3>
+          <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <View style={styles.infoLabel}>
+              <Ionicons name="mail-outline" size={18} color={colors.textSecondary} />
+              <Body style={{ marginLeft: 10 }}>Email</Body>
+            </View>
+            <BodySemibold style={styles.infoValue} numberOfLines={1}>{email}</BodySemibold>
           </View>
+          <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <View style={styles.infoLabel}>
+              <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
+              <Body style={{ marginLeft: 10 }}>Name</Body>
+            </View>
+            <BodySemibold style={styles.infoValue}>{displayName}</BodySemibold>
+          </View>
+          {memberSince ? (
+            <View style={styles.infoRow}>
+              <View style={styles.infoLabel}>
+                <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
+                <Body style={{ marginLeft: 10 }}>Member since</Body>
+              </View>
+              <BodySemibold style={styles.infoValue}>{memberSince}</BodySemibold>
+            </View>
+          ) : null}
         </View>
 
+        {/* Quick Access */}
         <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
-          <H3 style={styles.sectionTitle}>About Developer</H3>
-
+          <H3 style={styles.sectionTitle}>Quick Access</H3>
           <TouchableOpacity
-            style={[styles.devRow, { borderBottomColor: colors.border }]}
+            style={[styles.menuRow, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
-            onPress={handleOpenGitHub}
+            onPress={() => router.push("/settings" as any)}
           >
-            <View style={[styles.devIcon, { backgroundColor: "#24292E" }]}>
-              <Ionicons name="logo-github" size={20} color="#FFFFFF" />
+            <View style={[styles.menuIcon, { backgroundColor: colors.accentSoft }]}>
+              <Ionicons name="settings-outline" size={20} color={colors.accent} />
             </View>
-            <View style={styles.devInfo}>
-              <BodySemibold>{DEVELOPER.name}</BodySemibold>
-              <Caption dim>@{DEVELOPER.github}</Caption>
-            </View>
-            <Ionicons name="open-outline" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.devRow}
-            activeOpacity={0.7}
-            onPress={handleOpenEmail}
-          >
-            <View style={[styles.devIcon, { backgroundColor: colors.primary }]}>
-              <Ionicons name="mail-outline" size={20} color={colors.textInverse} />
-            </View>
-            <View style={styles.devInfo}>
-              <BodySemibold>Email</BodySemibold>
-              <Caption dim>{DEVELOPER.email}</Caption>
-            </View>
-            <Ionicons name="open-outline" size={18} color={colors.textMuted} />
+            <BodySemibold style={{ flex: 1 }}>App Settings</BodySemibold>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -205,10 +149,6 @@ const Profile = () => {
           onPress={handleSignOut}
           style={styles.signOutButton}
         />
-
-        <Caption align="center" dim>
-          {`NutriSnap v${appVersion}`}
-        </Caption>
       </ScrollView>
     </SafeAreaView>
   );
@@ -249,36 +189,37 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginBottom: 16,
   },
-  themeRow: {
+  infoRow: {
     flexDirection: "row",
-    gap: 10,
-    width: "100%",
-  },
-  themeOption: {
-    flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
+    justifyContent: "space-between",
+    width: "100%",
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  devRow: {
+  infoLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  infoValue: {
+    flexShrink: 1,
+    textAlign: "right",
+  },
+  menuRow: {
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  devIcon: {
+  menuIcon: {
     width: 40,
     height: 40,
     borderRadius: radius.sm,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 14,
-  },
-  devInfo: {
-    flex: 1,
   },
   signOutButton: { marginBottom: 24 },
 });

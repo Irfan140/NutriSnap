@@ -1,6 +1,6 @@
-import { useSignIn } from "@clerk/clerk-expo";
+import { useAuth, useSignIn } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
-import { Link, useRouter } from "expo-router";
+import { Link } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
@@ -21,8 +21,8 @@ import { fieldErrorMessage, signInSchema } from "@/src/lib/validation";
 import { cardShadow, colors, radius } from "@/src/theme";
 
 export default function SignInScreen() {
-  const { signIn, setActive, isLoaded } = useSignIn();
-  const router = useRouter();
+  const { signIn } = useSignIn();
+  const { isLoaded } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,14 +43,17 @@ export default function SignInScreen() {
     setIsLoading(true);
 
     try {
-      const signInAttempt = await signIn.create({
+      const attempt = await signIn.password({
         identifier: parsed.data.email,
         password: parsed.data.password,
       });
 
-      if (signInAttempt.status === "complete") {
-        await setActive({ session: signInAttempt.createdSessionId });
-        router.replace("/");
+      if (attempt.error) {
+        Alert.alert("Sign In Failed", "Please check your credentials");
+      } else if (signIn.status === "complete") {
+        // Finalize activates the new session, which flips the isSignedIn
+        // guard in the layout and redirects away from this screen.
+        await signIn.finalize();
       } else {
         Alert.alert("Sign In Failed", "Please check your credentials");
       }

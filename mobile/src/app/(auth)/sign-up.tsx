@@ -1,6 +1,6 @@
-import { useSignUp } from "@clerk/clerk-expo";
+import { useAuth, useSignUp } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
-import { Link, useRouter } from "expo-router";
+import { Link } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
@@ -24,8 +24,8 @@ import {
 import { cardShadow, colors, radius } from "@/src/theme";
 
 export default function SignUpScreen() {
-  const { isLoaded, signUp, setActive } = useSignUp();
-  const router = useRouter();
+  const { signUp } = useSignUp();
+  const { isLoaded } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,12 +47,16 @@ export default function SignUpScreen() {
     setIsLoading(true);
 
     try {
-      await signUp.create({
+      const createResult = await signUp.create({
         emailAddress: parsed.data.email,
         password: parsed.data.password,
       });
 
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      if (createResult.error) {
+        throw createResult.error;
+      }
+
+      await signUp.verifications.sendEmailCode();
 
       setPendingVerification(true);
     } catch (err) {
@@ -76,13 +80,18 @@ export default function SignUpScreen() {
     setIsLoading(true);
 
     try {
-      const signUpAttempt = await signUp.attemptEmailAddressVerification({
+      const verifyResult = await signUp.verifications.verifyEmailCode({
         code: parsed.data.code,
       });
 
-      if (signUpAttempt.status === "complete") {
-        await setActive({ session: signUpAttempt.createdSessionId });
-        router.replace("/");
+      if (verifyResult.error) {
+        throw verifyResult.error;
+      }
+
+      if (signUp.status === "complete") {
+        // Finalize activates the new session, which flips the isSignedIn
+        // guard in the layout and redirects away from this screen.
+        await signUp.finalize();
       } else {
         Alert.alert("Verification Failed", "Please check your code and try again");
       }

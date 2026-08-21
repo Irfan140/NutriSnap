@@ -2,12 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
   StyleSheet,
-  Text,
   TextInput,
   View,
   type KeyboardTypeOptions,
 } from "react-native";
-import { colors, radius } from "@/src/theme";
+import { useTheme } from "@/src/theme/index";
+import { radius } from "@/src/theme/index";
+import { Typography, Caption } from "@/src/components/Typography";
 
 interface FormInputProps {
   label: string;
@@ -36,16 +37,25 @@ export default function FormInput({
   maxLength,
   centerText = false,
 }: FormInputProps) {
+  const { colors, isDark } = useTheme();
   const [focused, setFocused] = useState(false);
+
+  const inputBg = focused ? colors.surface : colors.inputBg;
+  const borderColor = error
+    ? colors.danger
+    : focused
+      ? colors.primary
+      : colors.border;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
+      <Caption style={{ marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        {label}
+      </Caption>
       <View
         style={[
           styles.inputShell,
-          focused && styles.inputShellFocused,
-          error ? styles.inputShellError : null,
+          { backgroundColor: inputBg, borderColor },
         ]}
       >
         {icon && !centerText ? (
@@ -67,10 +77,18 @@ export default function FormInput({
           maxLength={maxLength}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          style={[styles.input, centerText && styles.inputCentered]}
+          style={[
+            styles.input,
+            { color: colors.textPrimary },
+            centerText && styles.inputCentered,
+          ]}
         />
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <Typography preset="caption" color="danger" style={styles.error}>
+          {error}
+        </Typography>
+      ) : null}
     </View>
   );
 }
@@ -79,27 +97,12 @@ const styles = StyleSheet.create({
   container: {
     marginBottom: 16,
   },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.textSecondary,
-    marginBottom: 8,
-  },
   inputShell: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.inputBg,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 1.5,
     borderRadius: radius.md,
     paddingHorizontal: 14,
-  },
-  inputShellFocused: {
-    borderColor: colors.primary,
-    backgroundColor: colors.white,
-  },
-  inputShellError: {
-    borderColor: colors.danger,
   },
   icon: {
     marginRight: 10,
@@ -108,7 +111,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     fontSize: 15,
-    color: colors.textPrimary,
+    fontWeight: "500",
   },
   inputCentered: {
     textAlign: "center",
@@ -118,8 +121,5 @@ const styles = StyleSheet.create({
   },
   error: {
     marginTop: 6,
-    fontSize: 12.5,
-    fontWeight: "500",
-    color: colors.danger,
   },
 });

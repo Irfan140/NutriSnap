@@ -2,11 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   StyleSheet,
-  Text,
   TouchableOpacity,
   type ViewStyle,
 } from "react-native";
-import { colors, radius } from "@/src/theme";
+import { useTheme, radius } from "@/src/theme/index";
+import { Typography } from "@/src/components/Typography";
 
 type Variant = "primary" | "danger" | "outline";
 
@@ -29,15 +29,41 @@ export default function PrimaryButton({
   disabled = false,
   style,
 }: PrimaryButtonProps) {
+  const { colors, buttonShadow, isDark } = useTheme();
   const isDisabled = disabled || loading;
-  const foreground = variant === "outline" ? colors.danger : colors.white;
+
+  const bgMap: Record<Variant, string> = {
+    primary: colors.primary,
+    danger: colors.danger,
+    outline: "transparent",
+  };
+
+  const fgMap: Record<Variant, string> = {
+    primary: colors.textInverse,
+    danger: colors.textInverse,
+    outline: colors.danger,
+  };
+
+  const foreground = fgMap[variant];
+  const background = bgMap[variant];
+  const isOutline = variant === "outline";
 
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={isDisabled}
       activeOpacity={0.85}
-      style={[styles.base, styles[variant], isDisabled && styles.disabled, style]}
+      style={[
+        styles.base,
+        {
+          backgroundColor: background,
+          borderColor: isOutline ? colors.danger : "transparent",
+          opacity: isDisabled ? 0.55 : 1,
+        },
+        !isOutline && buttonShadow,
+        isOutline && { borderWidth: 1.5 },
+        style,
+      ]}
     >
       {loading ? (
         <ActivityIndicator color={foreground} />
@@ -46,7 +72,9 @@ export default function PrimaryButton({
           {icon ? (
             <Ionicons name={icon} size={20} color={foreground} style={styles.icon} />
           ) : null}
-          <Text style={[styles.label, { color: foreground }]}>{label}</Text>
+          <Typography preset="button" style={{ color: foreground }}>
+            {label}
+          </Typography>
         </>
       )}
     </TouchableOpacity>
@@ -62,35 +90,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
   },
-  primary: {
-    backgroundColor: colors.primary,
-    shadowColor: colors.primaryDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  danger: {
-    backgroundColor: colors.danger,
-    shadowColor: colors.dangerDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  outline: {
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.danger,
-  },
-  disabled: {
-    opacity: 0.55,
-  },
   icon: {
     marginRight: 8,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "700",
   },
 });

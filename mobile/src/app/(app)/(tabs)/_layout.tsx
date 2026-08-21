@@ -1,9 +1,11 @@
 import AntDesign from "@expo/vector-icons/AntDesign";
 import { Tabs } from "expo-router";
 import React from "react";
-import { colors } from "@/src/theme";
+import { useTheme } from "@/src/theme/index";
 
 const Layout = () => {
+  const { colors } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
@@ -11,7 +13,7 @@ const Layout = () => {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: colors.white,
+          backgroundColor: colors.surface,
           borderTopColor: colors.border,
         },
         tabBarLabelStyle: {

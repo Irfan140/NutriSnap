@@ -114,6 +114,14 @@ export default function SignInScreen() {
               onPress={onSignInPress}
               loading={isLoading}
             />
+
+            <Link href="/(auth)/forgot-password" asChild>
+              <TouchableOpacity style={styles.forgotLink} activeOpacity={0.7}>
+                <Caption style={{ color: colors.primary, fontWeight: "600" }}>
+                  Forgot Password?
+                </Caption>
+              </TouchableOpacity>
+            </Link>
           </View>
 
           <View style={styles.dividerRow}>
@@ -159,7 +167,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 12,
-    shadowColor: "#15803D",
+    shadowColor: "#059669",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 14,
@@ -173,6 +181,11 @@ const styles = StyleSheet.create({
     marginVertical: 22,
   },
   dividerLine: { flex: 1, height: 1 },
+  forgotLink: {
+    alignSelf: "center",
+    marginTop: 16,
+    paddingVertical: 4,
+  },
   footer: {
     flexDirection: "row",
     justifyContent: "center",

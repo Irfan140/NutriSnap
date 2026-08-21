@@ -1,25 +1,8 @@
-import { useSSO } from "@clerk/clerk-expo";
-import * as AuthSession from "expo-auth-session";
-import * as WebBrowser from "expo-web-browser";
-import React, { useCallback, useEffect } from "react";
-import { StyleSheet, Text, TouchableOpacity } from "react-native";
+import { useSSO } from "@clerk/expo";
+import React, { useCallback } from "react";
+import { Alert, StyleSheet, Text, TouchableOpacity } from "react-native";
 import { Path, Svg } from "react-native-svg";
 import { cardShadow, colors, radius } from "@/src/theme";
-
-export const useWarmUpBrowser = () => {
-  useEffect(() => {
-    // Preloads the browser for Android devices to reduce authentication load time
-    // See: https://docs.expo.dev/guides/authentication/#improving-user-experience
-    void WebBrowser.warmUpAsync();
-    return () => {
-      // Cleanup: closes browser when component unmounts
-      void WebBrowser.coolDownAsync();
-    };
-  }, []);
-};
-
-// Handle any pending authentication sessions
-WebBrowser.maybeCompleteAuthSession();
 
 // Google Logo Component
 const GoogleIcon = () => (
@@ -44,45 +27,35 @@ const GoogleIcon = () => (
 );
 
 export default function GoogleSignIn() {
-  useWarmUpBrowser();
-
   // Use the `useSSO()` hook to access the `startSSOFlow()` method
   const { startSSOFlow } = useSSO();
 
   const onPress = useCallback(async () => {
     try {
       // Start the authentication process by calling `startSSOFlow()`
-      const { createdSessionId, setActive } = await startSSOFlow({
+      // The redirect URL is handled by Clerk (defaults to makeRedirectUri({ path: 'sso-callback' }))
+      // and ClerkProvider already calls WebBrowser.maybeCompleteAuthSession() internally
+      const { createdSessionId, setActive, signUp } = await startSSOFlow({
         strategy: "oauth_google",
-        // For web, defaults to current path
-        // For native, you must pass a scheme, like AuthSession.makeRedirectUri({ scheme, path })
-        // For more info, see https://docs.expo.dev/versions/latest/sdk/auth-session/#authsessionmakeredirecturioptions
-        redirectUrl: AuthSession.makeRedirectUri(),
       });
 
-      // If sign in was successful, set the active session
-      if (createdSessionId) {
-        setActive!({
-          session: createdSessionId,
-          navigate: async ({ session }) => {
-            if (session?.currentTask) {
-              // Check for tasks and navigate to custom UI to help users resolve them
-              // See https://clerk.com/docs/custom-flows/overview#session-tasks
-              console.log(session?.currentTask);
-              return;
-            }
-          },
-        });
-      } else {
-        // If there is no `createdSessionId`,
-        // there are missing requirements, such as MFA
-        // Use the `signIn` or `signUp` returned from `startSSOFlow`
-        // to handle next steps
+      // If sign in was successful, set the active session.
+      // Route protection in (app)/_layout.tsx handles navigation automatically
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
+      } else if (!createdSessionId && signUp?.status === "missing_requirements") {
+        // Instance requires fields the provider didn't supply (e.g. username)
+        Alert.alert(
+          "Additional Info Required",
+          "Please sign up with email to complete the required fields"
+        );
       }
+      // No createdSessionId and no missing requirements → user cancelled; do nothing
     } catch (err) {
       // See https://clerk.com/docs/custom-flows/error-handling
       // for more info on error handling
       console.error(JSON.stringify(err, null, 2));
+      Alert.alert("Sign In Failed", "Could not sign in with Google");
     }
   }, [startSSOFlow]);
 

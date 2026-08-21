@@ -4,7 +4,7 @@ import React from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { colors } from "@/src/theme";
 
-const Layout = () => {
+const AuthLayout = () => {
   const { isLoaded, isSignedIn } = useAuth();
 
   if (!isLoaded) {
@@ -15,18 +15,19 @@ const Layout = () => {
     );
   }
 
-  if (!isSignedIn) {
-    return <Redirect href="/(auth)/sign-in" />;
+  if (isSignedIn) {
+    return <Redirect href="/" />;
   }
 
   return (
     <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+      <Stack.Screen name="sign-up" options={{ headerShown: false }} />
     </Stack>
   );
 };
 
-export default Layout;
+export default AuthLayout;
 
 const styles = StyleSheet.create({
   loading: {

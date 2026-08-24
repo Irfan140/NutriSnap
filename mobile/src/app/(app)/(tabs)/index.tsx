@@ -85,6 +85,12 @@ export default function HomeScreen() {
     setNutrition(null);
   };
 
+  const handleReset = () => {
+    setSelectedImage(null);
+    setBase64Image(null);
+    resetResults();
+  };
+
   const showFailure = (message: string) => {
     setErrorMessage(message);
     setMarkdown("");
@@ -490,6 +496,28 @@ export default function HomeScreen() {
             </Markdown>
           </View>
         ) : null}
+
+        {nutrition || markdown !== "" ? (
+          <TouchableOpacity
+            style={[
+              styles.resetButton,
+              {
+                borderColor: colors.primary,
+                backgroundColor: isDark ? "transparent" : colors.primaryMuted,
+              },
+            ]}
+            activeOpacity={0.7}
+            onPress={handleReset}
+          >
+            <Ionicons
+              name="refresh-outline"
+              size={18}
+              color={colors.primary}
+              style={{ marginRight: 8 }}
+            />
+            <BodySemibold style={{ color: colors.primary }}>New Scan</BodySemibold>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
 
       {/* Theme toggle button */}
@@ -617,6 +645,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: 24,
     marginTop: 16,
+  },
+  resetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 48,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    marginTop: 20,
   },
   themeToggle: {
     position: "absolute",

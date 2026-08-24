@@ -1,25 +1,25 @@
 import AntDesign from "@expo/vector-icons/AntDesign";
 import { Tabs } from "expo-router";
 import React from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme, radius } from "@/src/theme/index";
 
 const Layout = () => {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarInactiveTintColor: isDark ? "#94A3B8" : colors.textMuted,
         tabBarStyle: {
           position: "absolute",
-          bottom: 18,
+          bottom: insets.bottom + 8,
           left: 20,
           right: 20,
-          backgroundColor: isDark
-            ? "rgba(30, 41, 59, 0.82)"
-            : "rgba(255, 255, 255, 0.78)",
+          backgroundColor: colors.surface,
           borderTopWidth: 0,
           borderRadius: radius.xl,
           elevation: 12,

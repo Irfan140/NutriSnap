@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { AnimatedCircularProgress } from "react-native-circular-progress";
 import Markdown, { MarkdownIt } from "react-native-markdown-display";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import {
   H1,
@@ -69,7 +69,8 @@ function MacroRow({ colors, icon, tint, label, value }: MacroRowProps) {
 
 export default function HomeScreen() {
   const { getToken, signOut } = useAuth();
-  const { colors, cardShadow, isDark } = useTheme();
+  const { colors, cardShadow, isDark, setThemeMode } = useTheme();
+  const insets = useSafeAreaInsets();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [base64Image, setBase64Image] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -233,7 +234,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
@@ -489,6 +490,23 @@ export default function HomeScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* Theme toggle button */}
+      <TouchableOpacity
+        style={[
+          styles.themeToggle,
+          { backgroundColor: colors.surface },
+          cardShadow,
+        ]}
+        activeOpacity={0.7}
+        onPress={() => setThemeMode(isDark ? "light" : "dark")}
+      >
+        <Ionicons
+          name={isDark ? "sunny-outline" : "moon-outline"}
+          size={22}
+          color={isDark ? "#FBBF24" : colors.primaryDark}
+        />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -598,5 +616,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: 24,
     marginTop: 16,
+  },
+  themeToggle: {
+    position: "absolute",
+    top: 60,
+    right: 24,
+    width: 44,
+    height: 44,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

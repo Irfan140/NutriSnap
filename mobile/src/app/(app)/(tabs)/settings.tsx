@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { H1, H3, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
 import { useTheme, radius } from "@/src/theme/index";
 
@@ -22,6 +22,7 @@ const DEVELOPER = {
 
 export default function SettingsScreen() {
   const { colors, cardShadow, themeMode, setThemeMode } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const handleOpenGitHub = useCallback(() => {
     Linking.openURL(DEVELOPER.githubUrl).catch(() =>
@@ -51,7 +52,7 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>

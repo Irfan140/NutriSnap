@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import { H1, H2, H3, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
 import { useTheme, radius } from "@/src/theme/index";
@@ -19,6 +19,7 @@ const Profile = () => {
   const { signOut } = useAuth();
   const { user } = useUser();
   const { colors, cardShadow } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -54,7 +55,7 @@ const Profile = () => {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>

@@ -15,6 +15,10 @@ export const analyzeMealRateLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => req.auth?.userId ?? (req.ip ? ipKeyGenerator(req.ip) : "unknown"),
   handler: (_req, res) => {
-    res.status(429).json({ error: "Too many requests, please try again later." });
+    res.status(429).json({
+      error:
+        "Rate limit hit — the developer is currently unemployed and cannot afford paid models. " +
+        "Pray he gets a job by the end of the year so this doesn't happen again.",
+    });
   },
 });

@@ -32,8 +32,9 @@ import {
   type NutritionData,
 } from "@/src/lib/nutrition";
 import { useTheme, radius, healthScoreColor, scoreLabel } from "@/src/theme/index";
+import { env } from "@/src/config/env";
 
-const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
+const SERVER_URL = env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
 const ANALYZE_URL = SERVER_URL ? `${SERVER_URL}/api/aifood` : undefined;
 const MAX_IMAGE_BASE64_LENGTH = 8 * 1024 * 1024;
 
@@ -84,6 +85,12 @@ export default function HomeScreen() {
     setNutrition(null);
   };
 
+  const handleReset = () => {
+    setSelectedImage(null);
+    setBase64Image(null);
+    resetResults();
+  };
+
   const showFailure = (message: string) => {
     setErrorMessage(message);
     setMarkdown("");
@@ -117,7 +124,7 @@ export default function HomeScreen() {
     if (!base64Image) return;
     if (!ANALYZE_URL) {
       showFailure(
-        "Server URL is missing. Set EXPO_PUBLIC_SERVER_URL in .env.local and restart Expo."
+        "Server URL is missing. Set EXPO_PUBLIC_SERVER_URL in your environment and restart Expo."
       );
       return;
     }
@@ -489,6 +496,28 @@ export default function HomeScreen() {
             </Markdown>
           </View>
         ) : null}
+
+        {nutrition || markdown !== "" ? (
+          <TouchableOpacity
+            style={[
+              styles.resetButton,
+              {
+                borderColor: colors.primary,
+                backgroundColor: isDark ? "transparent" : colors.primaryMuted,
+              },
+            ]}
+            activeOpacity={0.7}
+            onPress={handleReset}
+          >
+            <Ionicons
+              name="refresh-outline"
+              size={18}
+              color={colors.primary}
+              style={{ marginRight: 8 }}
+            />
+            <BodySemibold style={{ color: colors.primary }}>New Scan</BodySemibold>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
 
       {/* Theme toggle button */}
@@ -616,6 +645,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: 24,
     marginTop: 16,
+  },
+  resetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 48,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    marginTop: 20,
   },
   themeToggle: {
     position: "absolute",

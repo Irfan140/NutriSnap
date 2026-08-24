@@ -32,8 +32,9 @@ import {
   type NutritionData,
 } from "@/src/lib/nutrition";
 import { useTheme, radius, healthScoreColor, scoreLabel } from "@/src/theme/index";
+import { env } from "@/src/config/env";
 
-const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
+const SERVER_URL = env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
 const ANALYZE_URL = SERVER_URL ? `${SERVER_URL}/api/aifood` : undefined;
 const MAX_IMAGE_BASE64_LENGTH = 8 * 1024 * 1024;
 
@@ -117,7 +118,7 @@ export default function HomeScreen() {
     if (!base64Image) return;
     if (!ANALYZE_URL) {
       showFailure(
-        "Server URL is missing. Set EXPO_PUBLIC_SERVER_URL in .env.local and restart Expo."
+        "Server URL is missing. Set EXPO_PUBLIC_SERVER_URL in your environment and restart Expo."
       );
       return;
     }

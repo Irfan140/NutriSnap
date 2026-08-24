@@ -5,7 +5,7 @@ export const nutritionPrompt = ChatPromptTemplate.fromMessages([
     "system",
     `You are a professional nutritionist AI analyzing meal images.
 
-Return only one valid JSON object. Do not use markdown, code fences, tool calls, or quoted JSON strings.
+Return only one valid JSON object. Do NOT include any thinking, reasoning, explanation, markdown, code fences, tool calls, or quoted JSON strings — ONLY the raw JSON object on a single line.
 If the image does not clearly contain food or a meal, set isFood to false and nutrition to null.
 
 For food images:

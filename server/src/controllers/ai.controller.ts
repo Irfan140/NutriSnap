@@ -43,6 +43,15 @@ export function createAiController(service: AiService) {
       return;
     }
 
+    if (outcome.status === "provider-failure") {
+      res.status(502).json({
+        error:
+          "AI analysis failed — the developer is currently unemployed and cannot afford paid models. " +
+          "Pray he gets a job by the end of the year so this doesn't happen again.",
+      });
+      return;
+    }
+
     res.status(500).json({ error: "Error fetching AI guidance" });
   };
 

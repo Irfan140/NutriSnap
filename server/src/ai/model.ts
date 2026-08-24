@@ -6,5 +6,6 @@ export function createMealAnalysisModel(): ChatGroq {
     apiKey: env.GROQ_API_KEY,
     model: env.GROQ_VISION_MODEL,
     temperature: env.AI_TEMPERATURE,
+    timeout: 30_000,
   });
 }

@@ -1,5 +1,6 @@
 import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
@@ -86,12 +87,14 @@ export default function HomeScreen() {
   };
 
   const handleReset = () => {
+    void Haptics.selectionAsync();
     setSelectedImage(null);
     setBase64Image(null);
     resetResults();
   };
 
   const showFailure = (message: string) => {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     setErrorMessage(message);
     setMarkdown("");
     setNutrition(null);
@@ -118,6 +121,7 @@ export default function HomeScreen() {
       setSelectedImage(result.assets[0].uri);
       setBase64Image(result.assets[0].base64 || null);
       resetResults();
+      void Haptics.selectionAsync();
     }
   };
 
@@ -211,6 +215,7 @@ export default function HomeScreen() {
       }
 
       setMarkdown(extractMarkdown(message));
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error(err);
       showFailure(
@@ -244,6 +249,7 @@ export default function HomeScreen() {
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
           <View
@@ -264,6 +270,8 @@ export default function HomeScreen() {
           <View style={styles.previewCard}>
             <Image
               source={{ uri: selectedImage }}
+              accessibilityRole="image"
+              accessibilityLabel="Selected meal photo"
               style={[
                 styles.previewImage,
                 { backgroundColor: colors.border },
@@ -274,6 +282,10 @@ export default function HomeScreen() {
               style={styles.changePhotoButton}
               onPress={pickImage}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Change photo"
+              accessibilityHint="Pick a different meal photo from your gallery"
+              hitSlop={8}
             >
               <Ionicons name="refresh" size={15} color="#FFFFFF" />
               <Caption style={{ color: "#FFFFFF", marginLeft: 6 }}>
@@ -292,6 +304,9 @@ export default function HomeScreen() {
             ]}
             onPress={pickImage}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Choose a meal photo"
+            accessibilityHint="Opens your photo gallery to pick a meal photo"
           >
             <View
               style={[
@@ -314,6 +329,11 @@ export default function HomeScreen() {
           onPress={uploadToServer}
           disabled={!base64Image || loading}
           loading={loading}
+          accessibilityHint={
+            base64Image
+              ? "Analyze the selected meal photo"
+              : "Pick a meal photo first to enable analysis"
+          }
           style={styles.analyzeButton}
         />
 
@@ -328,6 +348,7 @@ export default function HomeScreen() {
 
         {errorMessage ? (
           <View
+            accessibilityLiveRegion="polite"
             style={[
               styles.errorBanner,
               {
@@ -342,6 +363,7 @@ export default function HomeScreen() {
               color={colors.danger}
             />
             <Caption
+              selectable
               style={{ flex: 1, marginLeft: 10, color: colors.dangerDark }}
             >
               {errorMessage}
@@ -509,6 +531,10 @@ export default function HomeScreen() {
             ]}
             activeOpacity={0.7}
             onPress={handleReset}
+            accessibilityRole="button"
+            accessibilityLabel="Start a new scan"
+            accessibilityHint="Clears the current result and photo"
+            hitSlop={4}
           >
             <Ionicons
               name="refresh-outline"
@@ -529,7 +555,13 @@ export default function HomeScreen() {
           cardShadow,
         ]}
         activeOpacity={0.7}
-        onPress={() => setThemeMode(isDark ? "light" : "dark")}
+        onPress={() => {
+          void Haptics.selectionAsync();
+          setThemeMode(isDark ? "light" : "dark");
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={isDark ? "Switch to light theme" : "Switch to dark theme"}
+        hitSlop={8}
       >
         <Ionicons
           name={isDark ? "sunny-outline" : "moon-outline"}

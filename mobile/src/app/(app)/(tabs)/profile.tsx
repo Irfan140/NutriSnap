@@ -134,6 +134,10 @@ const Profile = () => {
             style={[styles.menuRow, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
             onPress={() => router.push("/settings" as any)}
+            accessibilityRole="button"
+            accessibilityLabel="Open app settings"
+            accessibilityHint="Go to appearance and app info settings"
+            hitSlop={4}
           >
             <View style={[styles.menuIcon, { backgroundColor: colors.accentSoft }]}>
               <Ionicons name="settings-outline" size={20} color={colors.accent} />

@@ -1,5 +1,5 @@
 import { useSSO } from "@clerk/expo";
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import { Alert, StyleSheet, TouchableOpacity } from "react-native";
 import { Path, Svg } from "react-native-svg";
 import { useTheme, radius } from "@/src/theme/index";
@@ -30,8 +30,11 @@ const GoogleIcon = () => (
 export default function GoogleSignIn() {
   const { startSSOFlow } = useSSO();
   const { colors, cardShadow } = useTheme();
+  const [isLoading, setIsLoading] = useState(false);
 
   const onPress = useCallback(async () => {
+    if (isLoading) return;
+    setIsLoading(true);
     try {
       const { createdSessionId, setActive, signUp } = await startSSOFlow({
         strategy: "oauth_google",
@@ -48,18 +51,25 @@ export default function GoogleSignIn() {
     } catch (err) {
       console.error(JSON.stringify(err, null, 2));
       Alert.alert("Sign In Failed", "Could not sign in with Google");
+    } finally {
+      setIsLoading(false);
     }
-  }, [startSSOFlow]);
+  }, [startSSOFlow, isLoading]);
 
   return (
     <TouchableOpacity
       onPress={onPress}
+      disabled={isLoading}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel="Sign in with Google"
+      accessibilityState={{ disabled: isLoading, busy: isLoading }}
       style={[
         styles.button,
         {
           backgroundColor: colors.surface,
           borderColor: colors.border,
+          opacity: isLoading ? 0.6 : 1,
         },
         cardShadow,
       ]}

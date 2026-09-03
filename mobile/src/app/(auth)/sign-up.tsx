@@ -119,7 +119,7 @@ export default function SignUpScreen() {
             </View>
             <H2 align="center">Check your email</H2>
             <Subtitle align="center" style={{ marginTop: 8, marginBottom: 24 }}>
-              We've sent a verification code to {email}
+              {"We've sent a verification code to"} {email}
             </Subtitle>
 
             <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
@@ -180,6 +180,8 @@ export default function SignUpScreen() {
               onChangeText={setEmail}
               placeholder="you@example.com"
               keyboardType="email-address"
+              returnKeyType="next"
+              textContentType="emailAddress"
               error={fieldErrorMessage(formError, "email")}
             />
             <FormInput
@@ -189,6 +191,9 @@ export default function SignUpScreen() {
               onChangeText={setPassword}
               placeholder="Create a password (min. 8 characters)"
               secureTextEntry
+              returnKeyType="done"
+              textContentType="newPassword"
+              onSubmitEditing={onSignUpPress}
               error={fieldErrorMessage(formError, "password")}
             />
             <PrimaryButton
@@ -202,7 +207,12 @@ export default function SignUpScreen() {
           <View style={styles.footer}>
             <Body>Already have an account?</Body>
             <Link href="/sign-in" asChild>
-              <TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Go to sign in"
+                hitSlop={8}
+                style={styles.footerLink}
+              >
                 <BodySemibold style={{ color: colors.primary, marginLeft: 8 }}>
                   Sign In
                 </BodySemibold>
@@ -255,5 +265,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 24,
+  },
+  footerLink: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 4,
   },
 });

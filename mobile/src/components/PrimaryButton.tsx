@@ -18,6 +18,7 @@ interface PrimaryButtonProps {
   loading?: boolean;
   disabled?: boolean;
   style?: ViewStyle;
+  accessibilityHint?: string;
 }
 
 export default function PrimaryButton({
@@ -28,6 +29,7 @@ export default function PrimaryButton({
   loading = false,
   disabled = false,
   style,
+  accessibilityHint,
 }: PrimaryButtonProps) {
   const { colors, buttonShadow, isDark } = useTheme();
   const isDisabled = disabled || loading;
@@ -53,6 +55,10 @@ export default function PrimaryButton({
       onPress={onPress}
       disabled={isDisabled}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
       style={[
         styles.base,
         {

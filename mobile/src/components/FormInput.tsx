@@ -5,6 +5,8 @@ import {
   TextInput,
   View,
   type KeyboardTypeOptions,
+  type ReturnKeyTypeOptions,
+  type TextInputProps,
 } from "react-native";
 import { useTheme } from "@/src/theme/index";
 import { radius } from "@/src/theme/index";
@@ -22,6 +24,11 @@ interface FormInputProps {
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   maxLength?: number;
   centerText?: boolean;
+  returnKeyType?: ReturnKeyTypeOptions;
+  textContentType?: TextInputProps["textContentType"];
+  autoCorrect?: boolean;
+  editable?: boolean;
+  onSubmitEditing?: () => void;
 }
 
 export default function FormInput({
@@ -36,6 +43,11 @@ export default function FormInput({
   autoCapitalize = "none",
   maxLength,
   centerText = false,
+  returnKeyType,
+  textContentType,
+  autoCorrect = false,
+  editable = true,
+  onSubmitEditing,
 }: FormInputProps) {
   const { colors, isDark } = useTheme();
   const [focused, setFocused] = useState(false);
@@ -75,6 +87,15 @@ export default function FormInput({
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           maxLength={maxLength}
+          returnKeyType={returnKeyType}
+          textContentType={textContentType}
+          autoCorrect={autoCorrect}
+          editable={editable}
+          onSubmitEditing={onSubmitEditing}
+          selectionColor={colors.primary}
+          accessible
+          accessibilityLabel={label}
+          accessibilityState={{ disabled: !editable }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={[
@@ -85,7 +106,12 @@ export default function FormInput({
         />
       </View>
       {error ? (
-        <Typography preset="caption" color="danger" style={styles.error}>
+        <Typography
+          preset="caption"
+          color="danger"
+          style={styles.error}
+          accessibilityLiveRegion="polite"
+        >
           {error}
         </Typography>
       ) : null}

@@ -12,6 +12,7 @@ const Layout = () => {
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: isDark ? "#94A3B8" : colors.textMuted,
         tabBarStyle: {

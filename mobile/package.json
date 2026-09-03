@@ -22,8 +22,8 @@
     "build:prod:ios": "eas build --profile production --platform ios",
     "build:prod:all": "eas build --profile production --platform all",
 
-    "update:prod": "eas update --channel production",
-    "update:preview": "eas update --channel preview",
+    "update:prod": "eas update --channel production  --environment production",
+    "update:preview": "eas update --channel preview  --environment preview",
 
     "submit:prod": "eas submit --profile production --platform android",
 

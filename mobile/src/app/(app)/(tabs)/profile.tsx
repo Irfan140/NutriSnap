@@ -94,7 +94,7 @@ const Profile = () => {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 88 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>

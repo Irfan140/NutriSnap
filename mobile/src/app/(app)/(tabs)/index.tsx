@@ -8,6 +8,8 @@ import {
   Alert,
   Animated,
   Image,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -116,6 +118,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const errorModalAnim = useRef(new Animated.Value(0)).current;
   const [markdown, setMarkdown] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [nutrition, setNutrition] = useState<NutritionData | null>(null);
@@ -139,6 +142,27 @@ export default function HomeScreen() {
     setMarkdown("");
     setNutrition(null);
   };
+
+  const dismissError = () => {
+    setErrorMessage(null);
+  };
+
+  useEffect(() => {
+    if (errorMessage === null) {
+      return;
+    }
+    errorModalAnim.setValue(0);
+    const enter = Animated.spring(errorModalAnim, {
+      toValue: 1,
+      friction: 8,
+      tension: 90,
+      useNativeDriver: true,
+    });
+    enter.start();
+    return () => {
+      enter.stop();
+    };
+  }, [errorMessage, errorModalAnim]);
 
   useEffect(() => {
     if (!loading) {
@@ -296,6 +320,16 @@ export default function HomeScreen() {
     }
   };
 
+  const handleRetryAnalysis = () => {
+    setErrorMessage(null);
+    void uploadToServer();
+  };
+
+  const modalCardScale = errorModalAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.92, 1],
+  });
+
   const markdownStyles = StyleSheet.create({
     body: { fontSize: 15, lineHeight: 24, color: colors.textSecondary },
     heading1: {
@@ -402,18 +436,16 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <PrimaryButton
-          label={loading ? "Analyzing..." : "Analyze meal"}
-          icon={loading ? undefined : "sparkles-outline"}
-          onPress={uploadToServer}
-          disabled={!base64Image || loading}
-          accessibilityHint={
-            base64Image
-              ? "Analyze the selected meal photo"
-              : "Pick a meal photo first to enable analysis"
-          }
-          style={styles.analyzeButton}
-        />
+        {base64Image ? (
+          <PrimaryButton
+            label={loading ? "Analyzing..." : "Analyze meal"}
+            icon={loading ? undefined : "sparkles-outline"}
+            onPress={uploadToServer}
+            disabled={loading}
+            accessibilityHint="Analyze the selected meal photo"
+            style={styles.analyzeButton}
+          />
+        ) : null}
 
         {loading ? (
           <View
@@ -444,30 +476,84 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        {errorMessage ? (
+        <Modal
+          visible={errorMessage !== null}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={dismissError}
+        >
           <View
-            accessibilityLiveRegion="polite"
             style={[
-              styles.errorBanner,
+              styles.errorBackdrop,
               {
-                backgroundColor: colors.dangerSoft,
-                borderColor: colors.dangerDark + "20",
+                backgroundColor: isDark
+                  ? "rgba(0, 0, 0, 0.65)"
+                  : "rgba(15, 23, 42, 0.55)",
               },
             ]}
           >
-            <Ionicons
-              name="alert-circle-outline"
-              size={20}
-              color={colors.danger}
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={dismissError}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss error"
             />
-            <Caption
-              selectable
-              style={{ flex: 1, marginLeft: 10, color: colors.dangerDark }}
+            <Animated.View
+              accessibilityRole="alert"
+              style={[
+                styles.errorCard,
+                { backgroundColor: colors.surface },
+                cardShadow,
+                {
+                  opacity: errorModalAnim,
+                  transform: [{ scale: modalCardScale }],
+                },
+              ]}
             >
-              {errorMessage}
-            </Caption>
+              <View
+                style={[
+                  styles.errorIcon,
+                  { backgroundColor: colors.dangerSoft },
+                ]}
+              >
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={28}
+                  color={colors.danger}
+                />
+              </View>
+              <H3 align="center" style={{ marginTop: 14 }}>
+                Something went wrong
+              </H3>
+              <Body align="center" selectable style={{ marginTop: 8 }}>
+                {errorMessage ?? ""}
+              </Body>
+              <View style={styles.errorActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.errorCloseButton,
+                    { borderColor: colors.border },
+                  ]}
+                  activeOpacity={0.7}
+                  onPress={dismissError}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close error"
+                  hitSlop={4}
+                >
+                  <BodySemibold>Close</BodySemibold>
+                </TouchableOpacity>
+                <PrimaryButton
+                  label="Try Again"
+                  icon="refresh-outline"
+                  onPress={handleRetryAnalysis}
+                  accessibilityHint="Retry analyzing the selected meal photo"
+                  style={styles.errorRetryButton}
+                />
+              </View>
+            </Animated.View>
           </View>
-        ) : null}
+        </Modal>
 
         {nutrition ? (
           <View
@@ -674,7 +760,7 @@ export default function HomeScreen() {
           styles.fab,
           {
             backgroundColor: colors.primary,
-            bottom: insets.bottom + 88,
+            bottom: insets.bottom + 104,
             opacity: loading ? 0.6 : 1,
           },
           buttonShadow,
@@ -765,13 +851,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  errorBanner: {
+  errorBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  errorCard: {
+    width: "100%",
+    maxWidth: 400,
+    maxHeight: "80%",
+    borderRadius: radius.xl,
+    padding: 24,
+    alignItems: "center",
+  },
+  errorIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorActions: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    gap: 12,
+    marginTop: 20,
+    width: "100%",
+  },
+  errorCloseButton: {
+    flex: 1,
+    height: 50,
     borderRadius: radius.md,
-    borderWidth: 1,
-    padding: 16,
-    marginTop: 8,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorRetryButton: {
+    flex: 1,
+    height: 50,
   },
   summaryCard: {
     borderRadius: radius.xl,

@@ -1,10 +1,12 @@
 ﻿import { useAuth, useUser } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React from "react";
+import Constants from "expo-constants";
+import * as Haptics from "expo-haptics";
+import React, { useCallback } from "react";
 import {
   Alert,
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -12,8 +14,10 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import PrimaryButton from "@/src/components/PrimaryButton";
-import { H1, H2, H3, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
+import { H1, H3, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
 import { useTheme, radius } from "@/src/theme/index";
+
+const SUPPORT_EMAIL = "irfanmehmud140@gmail.com";
 
 const Profile = () => {
   const { signOut } = useAuth();
@@ -21,12 +25,47 @@ const Profile = () => {
   const { colors, cardShadow } = useTheme();
   const insets = useSafeAreaInsets();
 
+  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
+
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign Out", style: "destructive", onPress: () => signOut() },
     ]);
   };
+
+  const openSupportEmail = useCallback(async (subject: string, body: string) => {
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody = encodeURIComponent(body);
+    // Try the Gmail app first, fall back to the default mail app.
+    const gmailUrl = `googlegmail://co?to=${SUPPORT_EMAIL}&subject=${encodedSubject}&body=${encodedBody}`;
+    const mailtoUrl = `mailto:${SUPPORT_EMAIL}?subject=${encodedSubject}&body=${encodedBody}`;
+    try {
+      await Linking.openURL(gmailUrl);
+    } catch {
+      try {
+        await Linking.openURL(mailtoUrl);
+      } catch {
+        Alert.alert("Error", "Could not open an email app");
+      }
+    }
+  }, []);
+
+  const handleReportBug = useCallback(() => {
+    void Haptics.selectionAsync();
+    void openSupportEmail(
+      `NutriSnap Bug Report (App version: v${appVersion})`,
+      `Describe the issue:\n\n`,
+    );
+  }, [appVersion, openSupportEmail]);
+
+  const handleSendFeedback = useCallback(() => {
+    void Haptics.selectionAsync();
+    void openSupportEmail(
+      `NutriSnap Feedback (App version: v${appVersion})`,
+      `Your feedback:\n\n`,
+    );
+  }, [appVersion, openSupportEmail]);
 
   const avatarUri = user?.imageUrl ?? null;
   const displayName = user?.fullName ?? user?.firstName ?? "NutriSnap User";
@@ -55,7 +94,7 @@ const Profile = () => {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 88 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
@@ -127,23 +166,44 @@ const Profile = () => {
           ) : null}
         </View>
 
-        {/* Quick Access */}
+        {/* Support */}
         <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
-          <H3 style={styles.sectionTitle}>Quick Access</H3>
+          <H3 style={styles.sectionTitle}>Support</H3>
           <TouchableOpacity
             style={[styles.menuRow, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
-            onPress={() => router.push("/settings" as any)}
+            onPress={handleSendFeedback}
             accessibilityRole="button"
-            accessibilityLabel="Open app settings"
-            accessibilityHint="Go to appearance and app info settings"
+            accessibilityLabel="Send feedback"
+            accessibilityHint="Opens Gmail to send feedback"
             hitSlop={4}
           >
             <View style={[styles.menuIcon, { backgroundColor: colors.accentSoft }]}>
-              <Ionicons name="settings-outline" size={20} color={colors.accent} />
+              <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.accent} />
             </View>
-            <BodySemibold style={{ flex: 1 }}>App Settings</BodySemibold>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            <View style={{ flex: 1 }}>
+              <BodySemibold>Send Feedback</BodySemibold>
+              <Caption dim>Share ideas or suggestions</Caption>
+            </View>
+            <Ionicons name="open-outline" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.menuRow, { borderBottomWidth: 0 }]}
+            activeOpacity={0.7}
+            onPress={handleReportBug}
+            accessibilityRole="button"
+            accessibilityLabel="Report a bug"
+            accessibilityHint="Opens Gmail to send a bug report"
+            hitSlop={4}
+          >
+            <View style={[styles.menuIcon, { backgroundColor: colors.dangerSoft }]}>
+              <Ionicons name="bug-outline" size={20} color={colors.danger} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <BodySemibold>Report a Bug</BodySemibold>
+              <Caption dim>Found an issue? Let us know</Caption>
+            </View>
+            <Ionicons name="open-outline" size={18} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 

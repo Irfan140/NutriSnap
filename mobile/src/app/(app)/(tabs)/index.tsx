@@ -2,11 +2,14 @@ import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Image,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -39,6 +42,12 @@ const SERVER_URL = env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
 const ANALYZE_URL = SERVER_URL ? `${SERVER_URL}/api/aifood` : undefined;
 const MAX_IMAGE_BASE64_LENGTH = 8 * 1024 * 1024;
 
+const LOADING_MESSAGES = [
+  "Uploading your photo…",
+  "Reading your meal…",
+  "Crunching the nutrition numbers…",
+];
+
 interface MacroRowProps {
   colors: ReturnType<typeof useTheme>["colors"];
   icon: keyof typeof Ionicons.glyphMap;
@@ -69,13 +78,47 @@ function MacroRow({ colors, icon, tint, label, value }: MacroRowProps) {
   );
 }
 
+interface HowToStepProps {
+  colors: ReturnType<typeof useTheme>["colors"];
+  icon: keyof typeof Ionicons.glyphMap;
+  tint: string;
+  title: string;
+  description: string;
+  isLast?: boolean;
+}
+
+function HowToStep({ colors, icon, tint, title, description, isLast = false }: HowToStepProps) {
+  return (
+    <View
+      style={[
+        styles.howToRow,
+        !isLast && {
+          borderBottomColor: colors.border,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+        },
+      ]}
+    >
+      <View style={[styles.howToIcon, { backgroundColor: `${tint}1F` }]}>
+        <Ionicons name={icon} size={18} color={tint} />
+      </View>
+      <View style={styles.howToText}>
+        <BodySemibold>{title}</BodySemibold>
+        <Caption dim>{description}</Caption>
+      </View>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const { getToken, signOut } = useAuth();
-  const { colors, cardShadow, isDark, setThemeMode } = useTheme();
+  const { colors, cardShadow, buttonShadow, isDark, setThemeMode } = useTheme();
   const insets = useSafeAreaInsets();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [base64Image, setBase64Image] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const errorModalAnim = useRef(new Animated.Value(0)).current;
   const [markdown, setMarkdown] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [nutrition, setNutrition] = useState<NutritionData | null>(null);
@@ -99,6 +142,57 @@ export default function HomeScreen() {
     setMarkdown("");
     setNutrition(null);
   };
+
+  const dismissError = () => {
+    setErrorMessage(null);
+  };
+
+  useEffect(() => {
+    if (errorMessage === null) {
+      return;
+    }
+    errorModalAnim.setValue(0);
+    const enter = Animated.spring(errorModalAnim, {
+      toValue: 1,
+      friction: 8,
+      tension: 90,
+      useNativeDriver: true,
+    });
+    enter.start();
+    return () => {
+      enter.stop();
+    };
+  }, [errorMessage, errorModalAnim]);
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingStep(0);
+      return;
+    }
+    pulseAnim.setValue(1);
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 850,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 850,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    pulse.start();
+    const id = setInterval(() => {
+      setLoadingStep((s) => (s + 1) % LOADING_MESSAGES.length);
+    }, 2600);
+    return () => {
+      clearInterval(id);
+      pulse.stop();
+    };
+  }, [loading, pulseAnim]);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -226,6 +320,16 @@ export default function HomeScreen() {
     }
   };
 
+  const handleRetryAnalysis = () => {
+    setErrorMessage(null);
+    void uploadToServer();
+  };
+
+  const modalCardScale = errorModalAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.92, 1],
+  });
+
   const markdownStyles = StyleSheet.create({
     body: { fontSize: 15, lineHeight: 24, color: colors.textSecondary },
     heading1: {
@@ -247,7 +351,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -279,12 +383,14 @@ export default function HomeScreen() {
               ]}
             />
             <TouchableOpacity
-              style={styles.changePhotoButton}
+              style={[styles.changePhotoButton, loading && { opacity: 0.6 }]}
               onPress={pickImage}
+              disabled={loading}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel="Change photo"
               accessibilityHint="Pick a different meal photo from your gallery"
+              accessibilityState={{ disabled: loading }}
               hitSlop={8}
             >
               <Ionicons name="refresh" size={15} color="#FFFFFF" />
@@ -294,82 +400,160 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <TouchableOpacity
+          <View
             style={[
-              styles.pickerZone,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.primarySoft,
-              },
+              styles.howToCard,
+              { backgroundColor: colors.surface },
+              cardShadow,
             ]}
-            onPress={pickImage}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Choose a meal photo"
-            accessibilityHint="Opens your photo gallery to pick a meal photo"
           >
-            <View
-              style={[
-                styles.pickerIconWrap,
-                { backgroundColor: colors.primarySoft },
-              ]}
-            >
-              <Ionicons name="camera-outline" size={30} color={colors.primary} />
-            </View>
-            <H3 style={{ marginBottom: 6 }}>Choose a meal photo</H3>
-            <Caption align="center" dim>
-              Pick a clear photo from your gallery to analyze
+            <H3 style={{ marginBottom: 4 }}>How it works</H3>
+            <Caption dim style={{ marginBottom: 8 }}>
+              Get nutrition insights in three quick steps
             </Caption>
-          </TouchableOpacity>
+            <HowToStep
+              colors={colors}
+              icon="camera-outline"
+              tint="#0EA5E9"
+              title="Add a meal photo"
+              description="Tap the camera button below to pick one from your gallery"
+            />
+            <HowToStep
+              colors={colors}
+              icon="sparkles-outline"
+              tint="#8B5CF6"
+              title="Analyze it"
+              description="Tap Analyze meal and let the AI do the rest"
+            />
+            <HowToStep
+              colors={colors}
+              icon="nutrition-outline"
+              tint="#10B981"
+              title="See your results"
+              description="Calories, macros, vitamins and a health score"
+              isLast
+            />
+          </View>
         )}
 
-        <PrimaryButton
-          label={loading ? "Analyzing..." : "Analyze meal"}
-          icon={loading ? undefined : "sparkles-outline"}
-          onPress={uploadToServer}
-          disabled={!base64Image || loading}
-          loading={loading}
-          accessibilityHint={
-            base64Image
-              ? "Analyze the selected meal photo"
-              : "Pick a meal photo first to enable analysis"
-          }
-          style={styles.analyzeButton}
-        />
-
-        {loading ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator size="small" color={colors.primary} />
-            <BodySemibold style={{ marginLeft: 10 }}>
-              Crunching the nutrition numbers...
-            </BodySemibold>
-          </View>
+        {base64Image ? (
+          <PrimaryButton
+            label={loading ? "Analyzing..." : "Analyze meal"}
+            icon={loading ? undefined : "sparkles-outline"}
+            onPress={uploadToServer}
+            disabled={loading}
+            accessibilityHint="Analyze the selected meal photo"
+            style={styles.analyzeButton}
+          />
         ) : null}
 
-        {errorMessage ? (
+        {loading ? (
           <View
             accessibilityLiveRegion="polite"
             style={[
-              styles.errorBanner,
-              {
-                backgroundColor: colors.dangerSoft,
-                borderColor: colors.dangerDark + "20",
-              },
+              styles.loadingCard,
+              { backgroundColor: colors.surface },
+              cardShadow,
             ]}
           >
-            <Ionicons
-              name="alert-circle-outline"
-              size={20}
-              color={colors.danger}
-            />
-            <Caption
-              selectable
-              style={{ flex: 1, marginLeft: 10, color: colors.dangerDark }}
+            <Animated.View
+              style={[
+                styles.loadingPulse,
+                {
+                  backgroundColor: colors.primarySoft,
+                  transform: [{ scale: pulseAnim }],
+                },
+              ]}
             >
-              {errorMessage}
+              <ActivityIndicator size="large" color={colors.primary} />
+            </Animated.View>
+            <BodySemibold style={{ marginTop: 14 }}>
+              {LOADING_MESSAGES[loadingStep]}
+            </BodySemibold>
+            <Caption dim align="center" style={{ marginTop: 4 }}>
+              This usually takes a few seconds
             </Caption>
           </View>
         ) : null}
+
+        <Modal
+          visible={errorMessage !== null}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={dismissError}
+        >
+          <View
+            style={[
+              styles.errorBackdrop,
+              {
+                backgroundColor: isDark
+                  ? "rgba(0, 0, 0, 0.65)"
+                  : "rgba(15, 23, 42, 0.55)",
+              },
+            ]}
+          >
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={dismissError}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss error"
+            />
+            <Animated.View
+              accessibilityRole="alert"
+              style={[
+                styles.errorCard,
+                { backgroundColor: colors.surface },
+                cardShadow,
+                {
+                  opacity: errorModalAnim,
+                  transform: [{ scale: modalCardScale }],
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.errorIcon,
+                  { backgroundColor: colors.dangerSoft },
+                ]}
+              >
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={28}
+                  color={colors.danger}
+                />
+              </View>
+              <H3 align="center" style={{ marginTop: 14 }}>
+                Something went wrong
+              </H3>
+              <Body align="center" selectable style={{ marginTop: 8 }}>
+                {errorMessage ?? ""}
+              </Body>
+              <View style={styles.errorActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.errorCloseButton,
+                    { borderColor: colors.border },
+                  ]}
+                  activeOpacity={0.7}
+                  onPress={dismissError}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close error"
+                  hitSlop={4}
+                >
+                  <BodySemibold>Close</BodySemibold>
+                </TouchableOpacity>
+                <PrimaryButton
+                  label="Try Again"
+                  icon="refresh-outline"
+                  onPress={handleRetryAnalysis}
+                  accessibilityHint="Retry analyzing the selected meal photo"
+                  style={styles.errorRetryButton}
+                />
+              </View>
+            </Animated.View>
+          </View>
+        </Modal>
 
         {nutrition ? (
           <View
@@ -569,6 +753,29 @@ export default function HomeScreen() {
           color={isDark ? "#FBBF24" : colors.primaryDark}
         />
       </TouchableOpacity>
+
+      {/* Photo picker FAB — floats above the tab bar */}
+      <TouchableOpacity
+        style={[
+          styles.fab,
+          {
+            backgroundColor: colors.primary,
+            bottom: insets.bottom + 104,
+            opacity: loading ? 0.6 : 1,
+          },
+          buttonShadow,
+        ]}
+        onPress={pickImage}
+        disabled={loading}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={selectedImage ? "Change photo" : "Choose a meal photo"}
+        accessibilityHint="Opens your photo gallery to pick a meal photo"
+        accessibilityState={{ disabled: loading }}
+        hitSlop={4}
+      >
+        <Ionicons name="camera" size={26} color={colors.textInverse} />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -607,38 +814,81 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 9,
   },
-  pickerZone: {
+  howToCard: {
     borderRadius: radius.xl,
-    borderWidth: 1.5,
-    borderStyle: "dashed",
-    alignItems: "center",
-    paddingVertical: 36,
-    paddingHorizontal: 24,
+    padding: 24,
     marginBottom: 16,
   },
-  pickerIconWrap: {
-    width: 64,
-    height: 64,
+  howToRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  howToIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  howToText: {
+    flex: 1,
+    gap: 2,
+  },
+  analyzeButton: { marginBottom: 8 },
+  loadingCard: {
+    alignItems: "center",
+    borderRadius: radius.xl,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    marginTop: 16,
+  },
+  loadingPulse: {
+    width: 84,
+    height: 84,
     borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14,
   },
-  analyzeButton: { marginBottom: 8 },
-  loadingRow: {
-    flexDirection: "row",
+  errorBackdrop: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 8,
-    marginBottom: 4,
+    paddingHorizontal: 24,
   },
-  errorBanner: {
+  errorCard: {
+    width: "100%",
+    maxWidth: 400,
+    maxHeight: "80%",
+    borderRadius: radius.xl,
+    padding: 24,
+    alignItems: "center",
+  },
+  errorIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorActions: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    gap: 12,
+    marginTop: 20,
+    width: "100%",
+  },
+  errorCloseButton: {
+    flex: 1,
+    height: 50,
     borderRadius: radius.md,
-    borderWidth: 1,
-    padding: 16,
-    marginTop: 8,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorRetryButton: {
+    flex: 1,
+    height: 50,
   },
   summaryCard: {
     borderRadius: radius.xl,
@@ -694,6 +944,15 @@ const styles = StyleSheet.create({
     right: 24,
     width: 44,
     height: 44,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fab: {
+    position: "absolute",
+    right: 20,
+    width: 60,
+    height: 60,
     borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",

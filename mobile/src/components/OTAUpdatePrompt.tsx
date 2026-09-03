@@ -30,7 +30,10 @@ export default function OTAUpdatePrompt({ children }: { children: React.ReactNod
             <View style={styles.actions}>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="Update later"
+                accessibilityHint="Dismiss the update prompt for now"
                 onPress={dismissUpdate}
+                hitSlop={8}
                 style={styles.later}
               >
                 <Typography style={{ color: colors.textSecondary }}>Later</Typography>
@@ -73,8 +76,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   later: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: 48,
+    minWidth: 64,
+    alignItems: "center",
+    justifyContent: "center",
   },
   updateButton: {
     minWidth: 132,

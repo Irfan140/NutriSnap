@@ -106,10 +106,12 @@ const Brand = () => (
               </Subtitle>
               <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
                 <FormInput label="Email address" icon="mail-outline" value={email} onChangeText={setEmail}
-                  placeholder="you@example.com" keyboardType="email-address" />
+                  placeholder="you@example.com" keyboardType="email-address" returnKeyType="done"
+                  textContentType="emailAddress" onSubmitEditing={onSendCode} />
                 <PrimaryButton label="Send Reset Code" icon="send-outline" onPress={onSendCode} loading={isLoading} />
               </View>
-              <TouchableOpacity style={styles.footer} onPress={() => router.back()} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.footer} onPress={() => router.back()} activeOpacity={0.7}
+                accessibilityRole="button" accessibilityLabel="Back to sign in" hitSlop={8}>
                 <BodySemibold style={{ color: colors.primary }}>Back to Sign In</BodySemibold>
               </TouchableOpacity>
             </>
@@ -126,10 +128,12 @@ const Brand = () => (
               </Subtitle>
               <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
                 <FormInput label="Reset Code" icon="lock-closed-outline" value={code} onChangeText={setCode}
-                  placeholder="000000" keyboardType="number-pad" maxLength={6} centerText />
+                  placeholder="000000" keyboardType="number-pad" maxLength={6} centerText
+                  returnKeyType="done" onSubmitEditing={onVerifyCode} />
                 <PrimaryButton label="Verify Code" icon="checkmark-circle-outline" onPress={onVerifyCode} loading={isLoading} />
               </View>
-              <TouchableOpacity style={styles.footer} onPress={onResendCode} activeOpacity={0.7} disabled={isLoading}>
+              <TouchableOpacity style={styles.footer} onPress={onResendCode} activeOpacity={0.7} disabled={isLoading}
+                accessibilityRole="button" accessibilityLabel="Resend code" hitSlop={8}>
                 <BodySemibold style={{ color: colors.primary }}>Resend code</BodySemibold>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.footer, { marginTop: 4 }]} onPress={() => setStep("email")} activeOpacity={0.7}>
@@ -148,7 +152,8 @@ const Brand = () => (
               </Subtitle>
               <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
                 <FormInput label="New Password" icon="lock-closed-outline" value={newPassword}
-                  onChangeText={setNewPassword} placeholder="Min. 8 characters" secureTextEntry />
+                  onChangeText={setNewPassword} placeholder="Min. 8 characters" secureTextEntry
+                  returnKeyType="done" textContentType="newPassword" onSubmitEditing={onSubmitNewPassword} />
                 <PrimaryButton label="Reset Password" icon="refresh-outline" onPress={onSubmitNewPassword} loading={isLoading} />
               </View>
               <TouchableOpacity style={[styles.footer, { marginTop: 4 }]} onPress={() => setStep("code")} activeOpacity={0.7}>
@@ -180,5 +185,11 @@ const styles = StyleSheet.create({
   },
   subtitle: { marginTop: 8, marginBottom: 28 },
   card: { borderRadius: radius.lg, padding: 24 },
-  footer: { alignSelf: "center", marginTop: 20 },
+  footer: {
+    alignSelf: "center",
+    marginTop: 20,
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
 });

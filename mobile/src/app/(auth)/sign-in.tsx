@@ -97,6 +97,8 @@ export default function SignInScreen() {
               onChangeText={setEmail}
               placeholder="you@example.com"
               keyboardType="email-address"
+              returnKeyType="next"
+              textContentType="emailAddress"
               error={fieldErrorMessage(formError, "email")}
             />
             <FormInput
@@ -106,6 +108,9 @@ export default function SignInScreen() {
               onChangeText={setPassword}
               placeholder="Enter your password"
               secureTextEntry
+              returnKeyType="done"
+              textContentType="password"
+              onSubmitEditing={onSignInPress}
               error={fieldErrorMessage(formError, "password")}
             />
             <PrimaryButton
@@ -116,7 +121,13 @@ export default function SignInScreen() {
             />
 
             <Link href="/(auth)/forgot-password" asChild>
-              <TouchableOpacity style={styles.forgotLink} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.forgotLink}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Forgot password"
+                hitSlop={8}
+              >
                 <Caption style={{ color: colors.primary, fontWeight: "600" }}>
                   Forgot Password?
                 </Caption>
@@ -135,9 +146,14 @@ export default function SignInScreen() {
           <GoogleSignIn />
 
           <View style={styles.footer}>
-            <Body>Don't have an account?</Body>
+            <Body>{"Don't have an account?"}</Body>
             <Link href="/sign-up" asChild>
-              <TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Go to sign up"
+                hitSlop={8}
+                style={styles.footerLink}
+              >
                 <BodySemibold style={{ color: colors.primary, marginLeft: 8 }}>
                   Sign Up
                 </BodySemibold>
@@ -184,12 +200,20 @@ const styles = StyleSheet.create({
   forgotLink: {
     alignSelf: "center",
     marginTop: 16,
-    paddingVertical: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    minHeight: 44,
+    justifyContent: "center",
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     marginTop: 26,
+  },
+  footerLink: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 4,
   },
 });

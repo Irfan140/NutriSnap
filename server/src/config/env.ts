@@ -18,6 +18,15 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   CLERK_SECRET_KEY: z.string().trim().min(1, "CLERK_SECRET_KEY is required"),
   CLERK_PUBLISHABLE_KEY: z.string().trim().min(1, "CLERK_PUBLISHABLE_KEY is required"),
+  CLERK_WEBHOOK_SECRET: z.string().trim().min(1).optional(),
+  DATABASE_URL: z.string().trim().min(1, "DATABASE_URL is required"),
+  REDIS_URL: z.string().trim().min(1).default("redis://localhost:6379"),
+  R2_ACCOUNT_ID: z.string().trim().min(1).optional(),
+  R2_ACCESS_KEY_ID: z.string().trim().min(1).optional(),
+  R2_SECRET_ACCESS_KEY: z.string().trim().min(1).optional(),
+  R2_BUCKET: z.string().trim().min(1).optional(),
+  R2_PRESIGN_PUT_TTL_SEC: z.coerce.number().int().positive().default(300),
+  R2_PRESIGN_GET_TTL_SEC: z.coerce.number().int().positive().default(900),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -27,4 +36,3 @@ if (!parsedEnv.success) {
 }
 
 export const env = parsedEnv.data;
-

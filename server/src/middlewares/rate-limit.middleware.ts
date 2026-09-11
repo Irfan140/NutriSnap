@@ -20,3 +20,20 @@ export const analyzeMealRateLimiter = rateLimit({
     });
   },
 });
+
+/**
+ * Lighter guard for presigned-URL issuance (no AI cost per call, but each
+ * URL enables an R2 upload, so unbounded issuance is still abuse).
+ */
+export const uploadPresignRateLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  limit: 60,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: (req) => req.auth?.userId ?? (req.ip ? ipKeyGenerator(req.ip) : "unknown"),
+  handler: (_req, res) => {
+    res.status(429).json({
+      error: "Too many upload requests. Please try again in a while.",
+    });
+  },
+});

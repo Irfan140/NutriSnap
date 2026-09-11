@@ -18,11 +18,7 @@ export const logger = pino({
   level: env.LOG_LEVEL,
   timestamp: pino.stdTimeFunctions.isoTime,
   redact: {
-    paths: [
-      "req.headers.authorization",
-      "req.headers.cookie",
-      "res.headers['set-cookie']",
-    ],
+    paths: ["req.headers.authorization", "req.headers.cookie", "res.headers['set-cookie']"],
     censor: "[Redacted]",
   },
   ...(isDevelopment
@@ -37,5 +33,3 @@ export const logger = pino({
       }
     : {}),
 });
-
-

@@ -1,12 +1,13 @@
 import { env } from "../config/env.js";
-import { createMealAnalysisModel } from "./model.js";
-import { formatNutritionMessage, isFoodAnalysis, parseNutritionText } from "./parsers.js";
-import { nutritionPrompt } from "./prompts.js";
+import { createMealAnalysisModel } from "../lib/ai-model.js";
+import { formatNutritionMessage, isFoodAnalysis, parseNutritionText } from "./ai.parser.js";
+import type { FoodAnalysis } from "./ai.parser.js";
+import { nutritionPrompt } from "./ai.prompt.js";
 import { toImageDataUri } from "../utils/image.js";
 import { logger } from "../utils/logger.js";
 
 export type MealAnalysisOutcome =
-  | { readonly status: "success"; readonly message: string }
+  | { readonly status: "success"; readonly analysis: FoodAnalysis; readonly message: string }
   | { readonly status: "invalid-image" | "not-food" | "invalid-ai-response" | "provider-failure" };
 
 export type AiService = {
@@ -125,10 +126,7 @@ export function createAiService(): AiService {
     const analysis = parseNutritionText(rawText);
 
     if (analysis === null) {
-      logger.warn(
-        { preview: rawText.slice(0, 300) },
-        "AI returned unparseable response",
-      );
+      logger.warn({ preview: rawText.slice(0, 300) }, "AI returned unparseable response");
       return { status: "invalid-ai-response" };
     }
 
@@ -146,6 +144,7 @@ export function createAiService(): AiService {
 
     return {
       status: "success",
+      analysis,
       message: formatNutritionMessage(analysis),
     };
   }

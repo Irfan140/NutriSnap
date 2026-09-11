@@ -14,7 +14,12 @@ function isPayloadTooLargeError(error: unknown): boolean {
   return err.type === "entity.too.large" || err.status === 413;
 }
 
-export function errorHandler(error: unknown, req: Request, res: Response, _next: NextFunction): void {
+export function errorHandler(
+  error: unknown,
+  req: Request,
+  res: Response,
+  _next: NextFunction,
+): void {
   if (isPayloadTooLargeError(error)) {
     res.status(413).json({ error: "Image is too large. Please upload a smaller image." });
     return;

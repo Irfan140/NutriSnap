@@ -1,5 +1,5 @@
-import { nutritionAnalysisSchema } from "./schemas.js";
-import type { NutritionAnalysis, NutritionBreakdown } from "./schemas.js";
+import { nutritionAnalysisSchema } from "../schemas/nutrition.schema.js";
+import type { NutritionAnalysis, NutritionBreakdown } from "../schemas/nutrition.schema.js";
 
 export type FoodAnalysis = NutritionAnalysis & { nutrition: NutritionBreakdown };
 

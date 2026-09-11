@@ -1,19 +1,18 @@
 import { Router } from "express";
 import { asyncHandler } from "../middlewares/async.middleware.js";
 import { requireAuth } from "../middlewares/auth.middleware.js";
-import { analyzeMealRateLimiter } from "../middlewares/rate-limit.middleware.js";
+import { uploadPresignRateLimiter } from "../middlewares/rate-limit.middleware.js";
 import { createAiController } from "./ai.controller.js";
 
 const router = Router();
 const aiController = createAiController();
 
-// Async analysis: enqueue a background job (202) and poll GET /api/aifood/:id.
+// Issues a short-lived presigned PUT URL for direct-to-R2 uploads.
 router.post(
-  "/aifood",
+  "/uploads/presign",
   requireAuth,
-  analyzeMealRateLimiter,
-  asyncHandler(aiController.enqueueAnalysis),
+  uploadPresignRateLimiter,
+  asyncHandler(aiController.requestUpload),
 );
-router.get("/aifood/:id", requireAuth, asyncHandler(aiController.getAnalysis));
 
 export default router;

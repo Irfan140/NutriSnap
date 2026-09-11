@@ -23,5 +23,3 @@ export const requestLogger = pinoHttp<Request, Response>({
     userId: req.auth?.userId,
   }),
 });
-
-

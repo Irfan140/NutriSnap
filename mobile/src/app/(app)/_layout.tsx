@@ -23,6 +23,15 @@ const Layout = () => {
   return (
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="meal/[id]"
+        options={{
+          title: "Meal details",
+          headerStyle: { backgroundColor: colors.surface },
+          headerTintColor: colors.primary,
+          headerTitleStyle: { color: colors.textPrimary },
+        }}
+      />
     </Stack>
   );
 };

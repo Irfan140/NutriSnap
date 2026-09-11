@@ -1,6 +1,6 @@
 import type { MealAnalysis, MealAnalysisStatus } from "../../generated/prisma/client.js";
 import { prisma } from "../lib/prisma.lib.js";
-import type { SucceededAnalysisInput } from "../types/meal-analysis.types.js";
+import type { MealHistoryItem, SucceededAnalysisInput } from "../types/meal-analysis.types.js";
 
 export async function createQueuedAnalysis(
   userId: string,
@@ -19,6 +19,39 @@ export async function findUserAnalysis(id: string, userId: string): Promise<Meal
 
 export async function findAnalysisById(id: string): Promise<MealAnalysis | null> {
   return prisma.mealAnalysis.findUnique({ where: { id } });
+}
+
+/**
+ * Newest-first page of the caller's own analyses (meal history).
+ * Offset pagination is a deliberate v1 choice: personal history has a low
+ * write rate, so drift risk is negligible; upgrade to keyset if it matters.
+ */
+export async function listUserAnalyses(
+  userId: string,
+  page: number,
+  limit: number,
+): Promise<{ items: MealHistoryItem[]; total: number }> {
+  const skip = (page - 1) * limit;
+  const [items, total] = await prisma.$transaction([
+    prisma.mealAnalysis.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        status: true,
+        healthScore: true,
+        summary: true,
+        error: true,
+        r2Key: true,
+        createdAt: true,
+        completedAt: true,
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip,
+      take: limit,
+    }),
+    prisma.mealAnalysis.count({ where: { userId } }),
+  ]);
+  return { items, total };
 }
 
 export async function markAnalysisStatus(id: string, status: MealAnalysisStatus): Promise<void> {

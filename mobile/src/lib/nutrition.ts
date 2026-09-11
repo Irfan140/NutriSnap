@@ -92,3 +92,30 @@ export function extractMarkdown(message: string): string {
     .replace(/^### 2\..*$/m, "")
     .trim();
 }
+
+export type ParsedMealMessage = {
+  readonly nutrition: NutritionData | null;
+  readonly markdown: string;
+};
+
+/**
+ * Turns a formatted analysis `message` (```json block + Markdown) into
+ * renderable parts. Returns null when the message is malformed.
+ */
+export function parseResultMessage(message: string): ParsedMealMessage | null {
+  const rawNutrition = extractJsonBlock(message);
+
+  if (hasJsonBlock(message) && rawNutrition === null) {
+    return null;
+  }
+
+  if (rawNutrition !== null) {
+    const parsedNutrition = parseNutritionData(rawNutrition);
+    if (parsedNutrition === null) {
+      return null;
+    }
+    return { nutrition: parsedNutrition, markdown: extractMarkdown(message) };
+  }
+
+  return { nutrition: null, markdown: extractMarkdown(message) };
+}

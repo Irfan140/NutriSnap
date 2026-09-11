@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { asyncHandler } from "../middlewares/async.middlewares.js";
 import { requireAuth } from "../middlewares/auth.middlewares.js";
-import { analyzeMealRateLimiter } from "../middlewares/rate-limit.middlewares.js";
+import {
+  analyzeMealRateLimiter,
+  listMealsRateLimiter,
+} from "../middlewares/rate-limit.middlewares.js";
 import { createAiController } from "../controllers/meal-analysis.controllers.js";
 
 const router = Router();
@@ -14,6 +17,9 @@ router.post(
   analyzeMealRateLimiter,
   asyncHandler(aiController.enqueueAnalysis),
 );
+// Newest-first meal history page. Declared before "/aifood/:id" for clarity
+// (exact paths never collide with Express params, but order aids reading).
+router.get("/aifood", requireAuth, listMealsRateLimiter, asyncHandler(aiController.listAnalyses));
 router.get("/aifood/:id", requireAuth, asyncHandler(aiController.getAnalysis));
 
 export default router;

@@ -37,3 +37,19 @@ export const uploadPresignRateLimiter = rateLimit({
     });
   },
 });
+
+/**
+ * Generous guard for cheap authenticated reads (meal history pages).
+ */
+export const listMealsRateLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  limit: 120,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: (req) => req.auth?.userId ?? (req.ip ? ipKeyGenerator(req.ip) : "unknown"),
+  handler: (_req, res) => {
+    res.status(429).json({
+      error: "Too many requests. Please try again in a while.",
+    });
+  },
+});

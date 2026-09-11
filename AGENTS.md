@@ -28,8 +28,9 @@ NutriSnap/
 │   │   │   ├── sso-callback.tsx
 │   │   │   ├── (auth)/     # Unauthenticated: sign-in, sign-up, forgot-password
 │   │   │   └── (app)/      # Authenticated gate (redirect if !isSignedIn)
-│   │   │       └── (tabs)/ # Tabs: index (Home/analysis), profile, settings
-│   │   ├── components/     # PrimaryButton, FormInput, Typography, OTAUpdatePrompt, GoogSignIn
+│   │   │       └── (tabs)/ # Tabs: index (Home/analysis), history, profile, settings
+│   │   │       └── meal/[id].tsx # History detail (stack screen, reuses MealResultCard)
+│   │   ├── components/     # PrimaryButton, FormInput, Typography, OTAUpdatePrompt, GoogSignIn, MealResultCard
 │   │   ├── hooks/          # useOTAUpdate
 │   │   ├── lib/            # validation.ts (Zod), nutrition.ts (response parsing), meals-api.ts (poll/presign schemas), meal-image.ts (normalize)
 │   │   ├── theme/index.tsx # Light/dark tokens, ThemeProvider, healthScore helpers
@@ -44,7 +45,7 @@ NutriSnap/
 │   │   ├── app.ts          # Express app: cors, /api/webhooks (raw), json(10mb), requestLogger, clerkMiddleware, /health, /api
 │   │   ├── index.ts        # Entry: app.listen(env.PORT)
 │   │   ├── config/env.config.ts  # Zod-validated env (dotenv)
-│   │   ├── routes/         # meal-analysis.routes.ts (POST /aifood 202 + GET /aifood/:id), uploads.routes.ts (POST /uploads/presign), webhooks.routes.ts (POST /webhooks/clerk)
+│   │   ├── routes/         # meal-analysis.routes.ts (POST /aifood 202 + GET /aifood list + GET /aifood/:id), uploads.routes.ts (POST /uploads/presign), webhooks.routes.ts (POST /webhooks/clerk)
 │   │   ├── controllers/    # meal-analysis.controllers.ts (thin handlers)
 │   │   ├── middlewares/    # auth, rate-limit (aifood + presign), async, error, request-logger
 │   │   ├── types/          # meal-analysis, nutrition, user, r2 (.types.ts) + express.types.d.ts (req.auth)
@@ -99,7 +100,8 @@ Path alias: `@/*` maps to repo root of `mobile/` per `mobile/tsconfig.json:5` (e
 4. `POST /api/aifood` chain: `requireAuth` (401 if missing) → `analyzeMealRateLimiter` (20 req/hour, key = `userId` or `ipKeyGenerator(ip)`) → HEAD-checks the R2 object (422 if missing/too large) → creates `QUEUED` `MealAnalysis` row → BullMQ enqueue → `202 {analysisId}`.
 5. Worker (`src/workers/meal-analysis.workers.ts`, concurrency 3) downloads from R2 → `aiService.analyzeMeal` (same retry/parse/validate pipeline, now returns structured `analysis` + `message`) → persists `SUCCEEDED` row (nutrition columns + formatted `message`) or `FAILED` with user-facing error; provider failures throw so BullMQ retries (2 attempts, exponential backoff).
 6. Mobile polls `GET /api/aifood/:id` (2.5s interval, 4min timeout in `meals-api.ts`) → on `SUCCEEDED` renders `message` via the existing `extractJsonBlock`/`parseNutritionData`/`extractMarkdown` path (score circle + macro rows + Markdown). `GET` also returns a fresh short-lived `imageUrl` (presigned R2 GET).
-7. Clerk dashboard webhook → `POST /api/webhooks/clerk` (Svix-verified, `user.created/updated/deleted`) → upserts/deletes the `users` row; API calls `ensureUser` (lazy backstop via Clerk API) so FK constraints always hold.
+7. History tab (`(tabs)/history.tsx`) loads newest-first pages via `GET /api/aifood?page=&limit=` (offset, max 50; `listUserAnalyses` uses the existing `(userId, createdAt)` index — no migration) → rows show thumbnail (`imageUrl`, hidden on error), score chip, summary, date; tap pushes `meal/[id].tsx` which re-fetches `GET /api/aifood/:id` and renders the shared `MealResultCard`.
+8. Clerk dashboard webhook → `POST /api/webhooks/clerk` (Svix-verified, `user.created/updated/deleted`) → upserts/deletes the `users` row; API calls `ensureUser` (lazy backstop via Clerk API) so FK constraints always hold.
 
 ### Boundaries
 - Mobile never calls the AI provider or R2 directly except via server-issued short-lived presigned URLs; all AI goes through the job pipeline.
@@ -185,7 +187,7 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 - **Absolute imports (mobile)** — use `@/src/...` alias (`mobile/tsconfig.json:5` `@/* -> ./*`). Prefer `@/src/...` over deep relative paths for cross-directory imports. Server uses relative `./...js` ESM imports.
 - **Validation with Zod** — MUST validate all external input with Zod. Client: `mobile/src/lib/validation.ts` (signIn/signUp), `mobile/src/lib/nutrition.ts` (apiErrorSchema/analyzeResponseSchema), `mobile/src/lib/meals-api.ts` (presign/enqueue/poll schemas). Server: `server/src/schemas/meal.schemas.ts`, `server/src/schemas/nutrition.schemas.ts`, `clerk-sync.services.ts` (`clerkWebhookEventSchema`). Use `safeParse`, return first issue message on 400.
 - **Error handling** — Mobile: `index.tsx` orchestrates presign → PUT → enqueue → poll, handles 401 (signOut), non-ok JSON via `apiErrorSchema`, `AUTH_EXPIRED`/timeout via user-facing error modal + haptics; stale attempts ignored via `attemptRef`. Server: `202` on enqueue; `GET /:id` returns `QUEUED|PROCESSING` (200), `SUCCEEDED` (200 + `message`), `FAILED` (422 + `error`), `404` on foreign id; `503` when R2 is unconfigured; `error.middlewares.ts` handles `entity.too.large` → 413 and logs via `req.log ?? logger`.
-- **API conventions** — JSON over HTTPS; `POST /api/uploads/presign` (no body) → `{key, uploadUrl, expiresInSec}`; `POST /api/aifood` body `{imageKey: string}` (must be under caller's `meals/<userId>/` prefix) → `202 {analysisId, status}`; `GET /api/aifood/:id` → status/result; `POST /api/webhooks/clerk` takes raw Svix body. Health check `GET /health → {status:"ok"}`.
+- **API conventions** — JSON over HTTPS; `POST /api/uploads/presign` (no body) → `{key, uploadUrl, expiresInSec}`; `POST /api/aifood` body `{imageKey: string}` (must be under caller's `meals/<userId>/` prefix) → `202 {analysisId, status}`; `GET /api/aifood/:id` → status/result; `GET /api/aifood?page=&limit=` → `{items, page, limit, total}` history page (light rows, no `message`); `POST /api/webhooks/clerk` takes raw Svix body. Health check `GET /health → {status:"ok"}`.
 - **Logging** — Use `server/src/utils/logger.utils.ts` (pino). Request logger adds `userId` prop, auto-ignores `/health`, maps 5xx→error/4xx→warn. Never log `Authorization`/`Cookie` (redacted). Client uses `console.error`/`console.warn` only in `__DEV__` / catch blocks.
 - **Naming** — Components `PascalCase` (`PrimaryButton.tsx`), hooks `useXxx`, route groups `(auth)`/`(app)`/`(tabs)`, Zod schemas `xxxSchema`, logger `logger`, env `env`.
 - **Styling** — Inline `StyleSheet.create` with theme tokens; never hardcode colors — use `useTheme().colors` + `radius`/`spacing` from `mobile/src/theme/index.tsx`. Dark/light variants required if adding UI.
@@ -194,7 +196,7 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 ## 7. AI/Agent Development Rules
 
 - **MUST inspect existing code before adding abstractions** — read target file + neighbours (e.g., existing `utils/image.utils.ts`, `theme/index.tsx`) and reuse.
-- **MUST reuse existing utilities/components** — `PrimaryButton`, `FormInput`, `Typography`, `useTheme`, `healthScoreColor`, `parseNutritionData`, `prepareMealImage`, `pollAnalysisUntilDone`, `toImageDataUri`/`detectImageMimeType`, `logger`, `asyncHandler`, `enqueueMealAnalysis`, `ensureUser`, repositories (`users`, `meal-analyses`).
+- **MUST reuse existing utilities/components** — `PrimaryButton`, `FormInput`, `Typography`, `useTheme`, `healthScoreColor`, `parseNutritionData`, `prepareMealImage`, `pollAnalysisUntilDone`, `fetchMealsPage`, `parseResultMessage`, `MealResultCard`, `toImageDataUri`/`detectImageMimeType`, `logger`, `asyncHandler`, `enqueueMealAnalysis`, `ensureUser`, repositories (`users`, `meal-analyses`).
 - **MUST preserve architecture** — schema changes via Prisma migrate (never hand-edit migrations); do not add another auth provider or call the AI provider from mobile. Keep middleware order in `server/src/app.ts` (webhooks raw-first) and rate-limit keying (`userId ?? ip`).
 - **MUST keep changes scoped** — modify only files required by the task. Do not reformat unrelated files, bump deps, or regenerate `expo-env.d.ts`/`dist/`.
 - **SHOULD avoid new dependencies** — prefer existing libs (Zod, LangChain, Pino). If a dep is required, justify and use the lightest ESM-compatible option.
@@ -208,7 +210,7 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 - **Expo Router** — File-based; groups `(auth)` and `(app)` are route groups (parentheses stripped). `_layout.tsx` per group handles auth gating (`useAuth().isLoaded/isSignedIn` + `Redirect`). Tabs defined in `(tabs)/_layout.tsx` with `Tabs`, `screenListeners.tabPress → Haptics.selectionAsync()`, absolute floating tabBar style. Enable `typedRoutes:true` + `reactCompiler:true` (`app.config.ts:68-71`) — typed `Link` hrefs required.
 - **Clerk auth** — `ClerkProvider` + `tokenCache` from `@clerk/expo/token-cache` + `expo-secure-store` (`mobile/src/app/_layout.tsx:16`). Use `useAuth()`/`useSignIn()`/`useUser()`. Send `Authorization: Bearer ${await getToken()}` for API calls. On 401/missing token, `signOut()` and show user-facing message. See `sso-callback.tsx`, `GoogSignIn.tsx` for OAuth flow.
 - **Image flow** — `expo-image-picker` with `quality:1`, `allowsEditing:true`. Normalize via `prepareMealImage` (`meal-image.ts`: ≤1024px JPEG via `expo-image-manipulator`, also converts HEIC) → `POST /api/uploads/presign` → PUT via `expo-file-system/legacy` `uploadAsync` (`BINARY_CONTENT`, `Content-Type: image/jpeg`) → `POST /api/aifood` → poll with `pollAnalysisUntilDone` (`meals-api.ts`). Request `MediaLibrary` permission first. Server caps uploads at 5 MiB (`lib/r2.lib.ts:16`); presigned PUT URLs expire in 5 min.
-- **Data fetching** — Raw `fetch` in `index.tsx` (no React Query/SWR currently). Presign/enqueue validate with `meals-api.ts` schemas, errors via `apiErrorSchema`, result `message` via the `nutrition.ts` path. If adding hooks, co-locate near `src/hooks/` or `src/lib/meals-api.ts`.
+- **Data fetching** — Raw `fetch` in `index.tsx` (no React Query/SWR currently). Presign/enqueue validate with `meals-api.ts` schemas, errors via `apiErrorSchema`, result `message` via the `nutrition.ts` path. History (`history.tsx` + `meal/[id].tsx`) pages via `fetchMealsPage` (offset, 20/page) with pull-to-refresh, focus-refetch (60s stale), and `onEndReached` paging; rows push the stack detail screen which reuses `MealResultCard`. Clerk `getToken`/`signOut` identities are unstable across renders — read them through a ref (`authRef`) inside `useCallback` data loaders and never list them in effect deps, or mount/focus effects refetch in a loop (see history fix). If adding hooks, co-locate near `src/hooks/` or `src/lib/meals-api.ts`.
 - **UI / Theme** — `ThemeProvider` (`src/theme/index.tsx:148`) reads `SecureStore` key `nutrisnap_theme_mode`, syncs with `useColorScheme`, exposes `colors`, `isDark`, `cardShadow`/`buttonShadow`, `setThemeMode`. Use `lightColors`/`darkColors` tokens; helpers `healthScoreColor(score, colors)` / `scoreLabel(score)`. All screens use `SafeAreaView` + `useSafeAreaInsets`. Apply `buttonShadow`/`cardShadow` from theme (light vs dark variants at `theme/index.tsx:96-114`).
 - **OTA** — `useOTAUpdate` (`src/hooks/useOTAUpdate.ts`) wraps `expo-updates` with cooldown 30 min, auto-download, AppState foreground check. Displayed via `OTAUpdatePrompt` component. Do not break the `isUpdatePending`/`isUpdateAvailable` flow.
 - **Observability** — `AppMetricsRoot.wrap(Layout)` + `AppMetrics.markInteractive()` (`_layout.tsx:26`). Keep for cold-start metrics.
@@ -219,7 +221,7 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 
 - **Structure** — Thin routes → controllers → services → AI/model. Routes wire deps (`routes/meal-analysis.routes.ts:8` `createAiController()` with injectable `MealAnalysisDeps`). Controllers are pure request/response + Zod parse; services own retry/business logic.
 - **Auth** — `clerkMiddleware()` must stay before protected routes (`app.ts:13`). `requireAuth` (`middlewares/auth.middlewares.ts:12`) checks `getAuth(req).userId`, sets `req.auth` (typed via `types/express.types.d.ts`), 401 if absent.
-- **Rate limiting** — `analyzeMealRateLimiter` (`middlewares/rate-limit.middlewares.ts:11`): 20 req / 1 h, `keyGenerator: req.auth?.userId ?? ipKeyGenerator(ip)`, `standardHeaders draft-8`. Order after `requireAuth` so userId is available.
+- **Rate limiting** — `analyzeMealRateLimiter` (`middlewares/rate-limit.middlewares.ts:11`): 20 req / 1 h, `keyGenerator: req.auth?.userId ?? ipKeyGenerator(ip)`, `standardHeaders draft-8`. Order after `requireAuth` so userId is available. Cheap reads use `listMealsRateLimiter` (120/hr) and presign uses `uploadPresignRateLimiter` (60/hr), same file/keying.
 - **Validation** — `enqueueMealAnalysisSchema` (`schemas/meal.schemas.ts:4`) enforces non-empty `imageKey`; controller additionally checks the key prefix (`isUserImageKey`), R2 HEAD existence and `MAX_UPLOAD_BYTES` (5 MiB). Image helpers in `utils/image.utils.ts` sniff magic bytes (JPEG/PNG/WebP/GIF), handle `data:image/...;base64,` prefixes. Controller maps outcomes to status codes (422 for invalid-image/not-food/invalid-ai-response, 502 for provider-failure).
 - **AI** — `ChatOpenAI` (`lib/openai.lib.ts:4`) configured from env (`OPENAI_API_KEY`, `OPENAI_VISION_MODEL`, `AI_TEMPERATURE`, timeout 30s). Prompt section in `services/meal-analysis.services.ts:21` forces raw JSON only. Parser section (`parseNutritionText`, `:88`) tries 3 strategies (`tryExtractJson`, ` ```json ``` `, ` ``` ``` `) and validates via `nutritionAnalysisSchema`. Helpers `isFoodAnalysis`/`formatNutritionMessage` produce the wire format consumed by mobile.
 - **Retry** — `services/meal-analysis.services.ts:220` `invokeWithRetry` retries 3× with exponential backoff (`BASE_DELAY_MS 1s`), special-cases 429/`rate_limit` and `retry-after` header. Logs each retry via `logger.warn`.
@@ -316,6 +318,7 @@ Run **only** checks that exist; skip absent ones (no tests).
 - [ ] **Mobile manual**
   - Expo start loads without `Invalid environment configuration` error.
   - Sign-in → Home → pick image → Analyze succeeds (or shows expected 401/422/429 modal).
+  - History tab lists past analyses (thumbnail, score, date) → tap opens detail with full breakdown; pull-to-refresh + paging work.
   - Tab press triggers haptics, theme toggle persists via SecureStore.
 - [ ] **No secrets/ignored files staged** — `git status --ignored` shows `.env.local`/`.agents/` not staged.
 - [ ] **No `AGENTS.md` invented conventions** — every rule references an existing file/pattern.

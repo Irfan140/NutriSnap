@@ -13,9 +13,14 @@ import {
 import {
   createQueuedAnalysis,
   findUserAnalysis,
+  listUserAnalyses,
 } from "../repositories/meal-analyses.repositories.js";
 import { enqueueMealAnalysis } from "../queues/meal-analysis.queues.js";
-import { enqueueMealAnalysisSchema, mealAnalysisParamsSchema } from "../schemas/meal.schemas.js";
+import {
+  enqueueMealAnalysisSchema,
+  listMealsQuerySchema,
+  mealAnalysisParamsSchema,
+} from "../schemas/meal.schemas.js";
 import { ensureUser } from "../services/clerk-sync.services.js";
 import { logger } from "../utils/logger.utils.js";
 import type { AnalyzeMealResponse, MealAnalysisDeps } from "../types/meal-analysis.types.js";
@@ -36,10 +41,31 @@ type PresignResponseBody =
   | { readonly key: string; readonly uploadUrl: string; readonly expiresInSec: number }
   | ErrorResponse;
 
+type MealHistoryItemBody = {
+  readonly id: string;
+  readonly status: string;
+  readonly healthScore: number | null;
+  readonly summary: string | null;
+  readonly error: string | null;
+  readonly createdAt: string;
+  readonly completedAt: string | null;
+  readonly imageUrl?: string;
+};
+
+type MealHistoryPageBody =
+  | {
+      readonly items: readonly MealHistoryItemBody[];
+      readonly page: number;
+      readonly limit: number;
+      readonly total: number;
+    }
+  | ErrorResponse;
+
 const defaultDeps: MealAnalysisDeps = {
   ensureUser,
   createQueuedAnalysis,
   findUserAnalysis,
+  listUserAnalyses,
   enqueueMealAnalysis,
 };
 
@@ -182,5 +208,53 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
     });
   };
 
-  return { requestUpload, enqueueAnalysis, getAnalysis };
+  /** Newest-first page of the caller's meal history (lightweight rows). */
+  const listAnalyses: RequestHandler<ParamsDictionary, MealHistoryPageBody> = async (
+    req,
+    res,
+  ): Promise<void> => {
+    const parsedQuery = listMealsQuerySchema.safeParse(req.query);
+    if (!parsedQuery.success) {
+      res.status(400).json({ error: parsedQuery.error.issues[0]?.message ?? "Invalid query" });
+      return;
+    }
+
+    const clerkId = req.auth?.userId;
+    if (!clerkId) {
+      const { status, body } = unauthorized();
+      res.status(status).json(body);
+      return;
+    }
+
+    const user = await deps.ensureUser(clerkId);
+    const { page, limit } = parsedQuery.data;
+    const { items, total } = await deps.listUserAnalyses(user.id, page, limit);
+
+    const results = await Promise.all(
+      items.map(async (item): Promise<MealHistoryItemBody> => {
+        let imageUrl: string | undefined;
+        if (isR2Configured()) {
+          try {
+            imageUrl = (await createDownloadUrl(item.r2Key)).downloadUrl;
+          } catch (error) {
+            logger.warn({ err: error, analysisId: item.id }, "Failed to presign image view URL");
+          }
+        }
+        return {
+          id: item.id,
+          status: item.status,
+          healthScore: item.healthScore,
+          summary: item.summary,
+          error: item.error,
+          createdAt: item.createdAt.toISOString(),
+          completedAt: item.completedAt?.toISOString() ?? null,
+          ...(imageUrl ? { imageUrl } : {}),
+        };
+      }),
+    );
+
+    res.status(200).json({ items: results, page, limit, total });
+  };
+
+  return { requestUpload, enqueueAnalysis, getAnalysis, listAnalyses };
 }

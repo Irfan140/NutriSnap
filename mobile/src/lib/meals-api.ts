@@ -94,3 +94,71 @@ export async function pollAnalysisUntilDone(
     await sleep(intervalMs);
   }
 }
+
+export const mealHistoryItemSchema = z.object({
+  id: z.string().min(1),
+  status: z.string().min(1),
+  healthScore: z.number().int().min(0).max(100).nullable(),
+  summary: z.string().nullable(),
+  error: z.string().nullable(),
+  createdAt: z.string().min(1),
+  completedAt: z.string().nullable(),
+  imageUrl: z.string().optional(),
+});
+
+export const mealHistoryPageSchema = z.object({
+  items: z.array(mealHistoryItemSchema),
+  page: z.number().int().min(1),
+  limit: z.number().int().min(1),
+  total: z.number().int().min(0),
+});
+
+export type MealHistoryItem = z.infer<typeof mealHistoryItemSchema>;
+export type MealHistoryPage = z.infer<typeof mealHistoryPageSchema>;
+
+export const MEALS_PAGE_LIMIT = 20;
+
+/**
+ * Fetches one newest-first page of the caller's meal history.
+ * Throws `AUTH_EXPIRED` (caller signs out) or a user-facing Error.
+ */
+export async function fetchMealsPage(
+  baseUrl: string,
+  page: number,
+  getToken: () => Promise<string | null>,
+): Promise<MealHistoryPage> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("AUTH_EXPIRED");
+  }
+
+  const res = await fetch(`${baseUrl}?page=${page}&limit=${MEALS_PAGE_LIMIT}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) {
+    throw new Error("AUTH_EXPIRED");
+  }
+
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch {
+    throw new Error(`Unexpected server response (${res.status}).`);
+  }
+
+  if (!res.ok) {
+    const err =
+      typeof payload === "object" && payload !== null && "error" in payload
+        ? (payload as { error?: unknown }).error
+        : undefined;
+    throw new Error(
+      typeof err === "string" && err !== "" ? err : `History request failed (${res.status}).`,
+    );
+  }
+
+  const parsed = mealHistoryPageSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new Error("Unexpected server response.");
+  }
+  return parsed.data;
+}

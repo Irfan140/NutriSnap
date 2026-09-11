@@ -1,4 +1,9 @@
-import type { MealAnalysis, Prisma, User } from "../../generated/prisma/client.js";
+import type {
+  MealAnalysis,
+  MealAnalysisStatus,
+  Prisma,
+  User,
+} from "../../generated/prisma/client.js";
 import type { FoodAnalysis } from "./nutrition.types.js";
 
 export type { FoodAnalysis } from "./nutrition.types.js";
@@ -23,6 +28,24 @@ export type SucceededAnalysisInput = {
   readonly durationMs: number;
 };
 
+export type MealHistoryItem = {
+  readonly id: string;
+  readonly status: MealAnalysisStatus;
+  readonly healthScore: number | null;
+  readonly summary: string | null;
+  readonly error: string | null;
+  readonly r2Key: string;
+  readonly createdAt: Date;
+  readonly completedAt: Date | null;
+};
+
+export type MealHistoryPage = {
+  readonly items: readonly MealHistoryItem[];
+  readonly page: number;
+  readonly limit: number;
+  readonly total: number;
+};
+
 export type MealAnalysisOutcome =
   | { readonly status: "success"; readonly analysis: FoodAnalysis; readonly message: string }
   | { readonly status: "invalid-image" | "not-food" | "invalid-ai-response" | "provider-failure" };
@@ -39,5 +62,10 @@ export type MealAnalysisDeps = {
     model: string,
   ) => Promise<MealAnalysis>;
   readonly findUserAnalysis: (id: string, userId: string) => Promise<MealAnalysis | null>;
+  readonly listUserAnalyses: (
+    userId: string,
+    page: number,
+    limit: number,
+  ) => Promise<{ items: MealHistoryItem[]; total: number }>;
   readonly enqueueMealAnalysis: (data: MealAnalysisJobData) => Promise<string>;
 };

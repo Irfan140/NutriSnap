@@ -49,8 +49,8 @@ NutriSnap is a mobile AI meal analyzer built with Expo and React Native. Users s
 
 
 1. Clerk protects the mobile app and supplies a bearer token for authenticated requests.
-2. The user chooses a meal image from the gallery. The mobile app sends its base64 content to `POST /api/aifood`.
-3. Express validates the Clerk session, request body, image format, image size, and per-user request limit.
-4. The AI service sends the image to the OpenAI vision model through LangChain and requests a JSON nutrition analysis.
-5. The server validates the model output with Zod, rejects non-food or invalid results, and formats successful results as a JSON code block plus Markdown guidance.
+2. The user chooses a meal image from the gallery. The mobile app uploads it straight to private object storage via a short-lived presigned URL, then calls `POST /api/aifood` with the storage key.
+3. Express validates the Clerk session, storage key ownership, object existence/size, and per-user request limit, then enqueues a background job and returns `202`.
+4. A BullMQ worker downloads the image and sends it to the OpenAI vision model through LangChain, requesting a JSON nutrition analysis.
+5. The server validates the model output with Zod and persists the result (or a user-facing failure); the mobile app polls until it is done. History, stats, and deletion all operate on the stored rows and objects.
 6. The mobile app parses the `{ message }` response and renders the health score, nutrition rows, vitamins, advice, alternatives, and summary. The server also exposes `GET /health` for health checks.

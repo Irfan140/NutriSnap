@@ -5,6 +5,7 @@ import {
   buildMealImageKey,
   createDownloadUrl,
   createUploadUrl,
+  deleteObject,
   headObject,
   isR2Configured,
   isUserImageKey,
@@ -12,13 +13,24 @@ import {
 } from "../lib/r2.lib.js";
 import {
   createQueuedAnalysis,
+  deleteAnalysisById,
   findUserAnalysis,
+  getUserMealStats,
+  listUserAnalyses,
 } from "../repositories/meal-analyses.repositories.js";
-import { enqueueMealAnalysis } from "../queues/meal-analysis.queues.js";
-import { enqueueMealAnalysisSchema, mealAnalysisParamsSchema } from "../schemas/meal.schemas.js";
+import { enqueueMealAnalysis, removeAnalysisJob } from "../queues/meal-analysis.queues.js";
+import {
+  enqueueMealAnalysisSchema,
+  listMealsQuerySchema,
+  mealAnalysisParamsSchema,
+} from "../schemas/meal.schemas.js";
 import { ensureUser } from "../services/clerk-sync.services.js";
 import { logger } from "../utils/logger.utils.js";
-import type { AnalyzeMealResponse, MealAnalysisDeps } from "../types/meal-analysis.types.js";
+import type {
+  AnalyzeMealResponse,
+  MealAnalysisDeps,
+  UserMealStats,
+} from "../types/meal-analysis.types.js";
 
 type ErrorResponse = {
   readonly error: string;
@@ -36,10 +48,39 @@ type PresignResponseBody =
   | { readonly key: string; readonly uploadUrl: string; readonly expiresInSec: number }
   | ErrorResponse;
 
+type MealHistoryItemBody = {
+  readonly id: string;
+  readonly status: string;
+  readonly healthScore: number | null;
+  readonly summary: string | null;
+  readonly error: string | null;
+  readonly createdAt: string;
+  readonly completedAt: string | null;
+  readonly imageUrl?: string;
+};
+
+type MealHistoryPageBody =
+  | {
+      readonly items: readonly MealHistoryItemBody[];
+      readonly page: number;
+      readonly limit: number;
+      readonly total: number;
+    }
+  | ErrorResponse;
+
+type MealsStatsResponseBody =
+  | (Omit<UserMealStats, "lastAnalyzedAt"> & { readonly lastAnalyzedAt: string | null })
+  | ErrorResponse;
+
 const defaultDeps: MealAnalysisDeps = {
   ensureUser,
   createQueuedAnalysis,
   findUserAnalysis,
+  listUserAnalyses,
+  getUserMealStats,
+  removeAnalysisJob,
+  deleteAnalysisById,
+  deleteObject,
   enqueueMealAnalysis,
 };
 
@@ -182,5 +223,119 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
     });
   };
 
-  return { requestUpload, enqueueAnalysis, getAnalysis };
+  /** Newest-first page of the caller's meal history (lightweight rows). */
+  const listAnalyses: RequestHandler<ParamsDictionary, MealHistoryPageBody> = async (
+    req,
+    res,
+  ): Promise<void> => {
+    const parsedQuery = listMealsQuerySchema.safeParse(req.query);
+    if (!parsedQuery.success) {
+      res.status(400).json({ error: parsedQuery.error.issues[0]?.message ?? "Invalid query" });
+      return;
+    }
+
+    const clerkId = req.auth?.userId;
+    if (!clerkId) {
+      const { status, body } = unauthorized();
+      res.status(status).json(body);
+      return;
+    }
+
+    const user = await deps.ensureUser(clerkId);
+    const { page, limit } = parsedQuery.data;
+    const { items, total } = await deps.listUserAnalyses(user.id, page, limit);
+
+    const results = await Promise.all(
+      items.map(async (item): Promise<MealHistoryItemBody> => {
+        let imageUrl: string | undefined;
+        if (isR2Configured()) {
+          try {
+            imageUrl = (await createDownloadUrl(item.r2Key)).downloadUrl;
+          } catch (error) {
+            logger.warn({ err: error, analysisId: item.id }, "Failed to presign image view URL");
+          }
+        }
+        return {
+          id: item.id,
+          status: item.status,
+          healthScore: item.healthScore,
+          summary: item.summary,
+          error: item.error,
+          createdAt: item.createdAt.toISOString(),
+          completedAt: item.completedAt?.toISOString() ?? null,
+          ...(imageUrl ? { imageUrl } : {}),
+        };
+      }),
+    );
+
+    res.status(200).json({ items: results, page, limit, total });
+  };
+
+  /** Profile stats for the caller (totals, average score, streaks). */
+  const getMealsStats: RequestHandler<ParamsDictionary, MealsStatsResponseBody> = async (
+    req,
+    res,
+  ): Promise<void> => {
+    const clerkId = req.auth?.userId;
+    if (!clerkId) {
+      const { status, body } = unauthorized();
+      res.status(status).json(body);
+      return;
+    }
+
+    const user = await deps.ensureUser(clerkId);
+    const stats = await deps.getUserMealStats(user.id);
+    res.status(200).json({
+      ...stats,
+      lastAnalyzedAt: stats.lastAnalyzedAt?.toISOString() ?? null,
+    });
+  };
+
+  /** Deletes one analysis: drops the queued job, row, and private image. */
+  const deleteAnalysis: RequestHandler<ParamsDictionary, ErrorResponse> = async (
+    req,
+    res,
+  ): Promise<void> => {
+    const parsedParams = mealAnalysisParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      res.status(400).json({ error: parsedParams.error.issues[0]?.message ?? "Invalid request" });
+      return;
+    }
+
+    const clerkId = req.auth?.userId;
+    if (!clerkId) {
+      const { status, body } = unauthorized();
+      res.status(status).json(body);
+      return;
+    }
+
+    const user = await deps.ensureUser(clerkId);
+    const row = await deps.findUserAnalysis(parsedParams.data.id, user.id);
+    if (!row) {
+      res.status(404).json({ error: "Analysis not found." });
+      return;
+    }
+
+    // Best-effort: an actively processing job notices the missing row and
+    // finishes as a no-op (see the processor's missing-row guards).
+    await deps.removeAnalysisJob(row.id);
+    await deps.deleteAnalysisById(row.id);
+    try {
+      await deps.deleteObject(row.r2Key);
+    } catch (error) {
+      // The orphan sweeper backstops: log and still report success.
+      logger.warn({ err: error, analysisId: row.id }, "Failed to delete R2 object with analysis");
+    }
+
+    res.status(204).end();
+  };
+
+  return {
+    requestUpload,
+    enqueueAnalysis,
+    getAnalysis,
+    listAnalyses,
+    getMealsStats,
+    deleteAnalysis,
+  };
 }

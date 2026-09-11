@@ -1,6 +1,9 @@
 import {
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -137,4 +140,58 @@ export async function downloadObject(key: string): Promise<Buffer> {
   }
   const bytes = await response.Body.transformToByteArray();
   return Buffer.from(bytes);
+}
+
+/** Deletes a single private object (meal/account deletion). Idempotent. */
+export async function deleteObject(key: string): Promise<void> {
+  const config = requireR2Config();
+  await getR2Client().send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key }));
+}
+
+export type R2ObjectInfo = {
+  readonly key: string;
+  readonly lastModified: Date | undefined;
+};
+
+export type R2ListPage = {
+  readonly objects: readonly R2ObjectInfo[];
+  readonly nextToken: string | undefined;
+};
+
+/** Lists keys under a prefix (one page, up to maxKeys). */
+export async function listObjects(
+  prefix: string,
+  maxKeys = 1000,
+  continuationToken?: string,
+): Promise<R2ListPage> {
+  const config = requireR2Config();
+  const response = await getR2Client().send(
+    new ListObjectsV2Command({
+      Bucket: config.bucket,
+      Prefix: prefix,
+      MaxKeys: maxKeys,
+      ContinuationToken: continuationToken,
+    }),
+  );
+  return {
+    objects: (response.Contents ?? [])
+      .filter((o) => o.Key !== undefined)
+      .map((o) => ({ key: o.Key as string, lastModified: o.LastModified })),
+    nextToken: response.IsTruncated ? response.NextContinuationToken : undefined,
+  };
+}
+
+/** Batch-deletes up to 1000 keys per call (S3 limit); chunks larger lists. */
+export async function deleteObjects(keys: readonly string[]): Promise<number> {
+  if (keys.length === 0) return 0;
+  const config = requireR2Config();
+  let deleted = 0;
+  for (let i = 0; i < keys.length; i += 1000) {
+    const chunk = keys.slice(i, i + 1000).map((Key) => ({ Key }));
+    const response = await getR2Client().send(
+      new DeleteObjectsCommand({ Bucket: config.bucket, Delete: { Objects: chunk } }),
+    );
+    deleted += response.Deleted?.length ?? 0;
+  }
+  return deleted;
 }

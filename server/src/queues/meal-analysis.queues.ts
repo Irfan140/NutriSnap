@@ -1,14 +1,14 @@
 import { Queue } from "bullmq";
 import { env } from "../config/env.config.js";
-import type { MealAnalysisJobData } from "../types/meal-analysis.types.js";
+import type { MealAnalysisJobData, MealQueueJobData } from "../types/meal-analysis.types.js";
 
 export const MEAL_ANALYSIS_QUEUE_NAME = "meal-analysis";
 
-let queue: Queue<MealAnalysisJobData> | null = null;
+let queue: Queue<MealQueueJobData> | null = null;
 
-export function getMealAnalysisQueue(): Queue<MealAnalysisJobData> {
+export function getMealAnalysisQueue(): Queue<MealQueueJobData> {
   if (!queue) {
-    queue = new Queue<MealAnalysisJobData>(MEAL_ANALYSIS_QUEUE_NAME, {
+    queue = new Queue<MealQueueJobData>(MEAL_ANALYSIS_QUEUE_NAME, {
       connection: { url: env.REDIS_URL, maxRetriesPerRequest: null },
     });
   }
@@ -33,4 +33,20 @@ export async function enqueueMealAnalysis(data: MealAnalysisJobData): Promise<st
 export async function closeMealAnalysisQueue(): Promise<void> {
   await queue?.close();
   queue = null;
+}
+
+/**
+ * Best-effort removal of a queued job (meal deletion / account erasure).
+ * Resolves false when the job is already gone or actively processing —
+ * the processor treats a missing row as done, so callers can proceed.
+ */
+export async function removeAnalysisJob(analysisId: string): Promise<boolean> {
+  const job = await getMealAnalysisQueue().getJob(analysisId);
+  if (!job) return false;
+  try {
+    await job.remove();
+    return true;
+  } catch {
+    return false;
+  }
 }

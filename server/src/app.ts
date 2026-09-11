@@ -2,6 +2,7 @@ import { clerkMiddleware } from "@clerk/express";
 import express from "express";
 import cors from "cors";
 import aiRoutes from "./routes/meal-analysis.routes.js";
+import accountRoutes from "./routes/account.routes.js";
 import uploadsRoutes from "./routes/uploads.routes.js";
 import webhooksRoutes from "./routes/webhooks.routes.js";
 import { errorHandler, notFoundHandler } from "./middlewares/error.middlewares.js";
@@ -24,6 +25,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/api", aiRoutes);
 app.use("/api", uploadsRoutes);
+app.use("/api", accountRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

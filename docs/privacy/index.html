@@ -174,10 +174,11 @@
       <h3>2.2 Meal Photos</h3>
       <p>
         To provide nutrition analysis, you may select a meal photo from your device's photo library.
-        This photo is uploaded to our servers and transmitted to a third-party artificial
-        intelligence provider, OpenAI, LLC ("OpenAI"), for analysis. Meal photos are processed
-        transiently for the purpose of generating your nutrition report and are not retained by us
-        in persistent storage.
+        This photo is uploaded to our private object storage and transmitted to a third-party artificial
+        intelligence provider, OpenAI, LLC ("OpenAI"), for analysis. We retain your meal photos and
+        generated nutrition reports so you can view your history. Photos and reports are permanently
+        deleted when you delete the meal or your account. Incomplete uploads that are never analyzed
+        are removed automatically after 24 hours.
       </p>
 
       <h3>2.3 Usage and Log Data</h3>
@@ -220,6 +221,7 @@
       <ul>
         <li><strong>Clerk, Inc.</strong> — authentication and account management.</li>
         <li><strong>OpenAI, LLC</strong> — the AI vision model that analyzes your meal photos.</li>
+        <li><strong>Cloudflare, Inc.</strong> — private object storage for your meal photos.</li>
         <li><strong>Google LLC</strong> — only if you choose to sign in with Google.</li>
       </ul>
       <p>
@@ -232,7 +234,7 @@
       <h2>5. Data Retention</h2>
       <ul>
         <li><strong>Account information</strong> is retained for as long as your account remains active and is managed by Clerk.</li>
-        <li><strong>Meal photos</strong> are processed transiently and are not retained in persistent storage by us.</li>
+        <li><strong>Meal photos and nutrition reports</strong> are retained in private storage until you delete the meal or your account, at which point they are permanently removed.</li>
         <li><strong>Server logs</strong> may be retained for a limited period for operational and security purposes.</li>
       </ul>
     </div>

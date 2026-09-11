@@ -11,7 +11,7 @@ NutriSnap is a full-stack AI meal analyzer. Users authenticate (Clerk), pick a m
 | Service | Path | Runtime | Entry |
 |---------|------|---------|-------|
 | Mobile app | `mobile/` | Expo SDK 55 + React Native 0.83 + React 19 | `mobile/src/app/_layout.tsx` (expo-router) |
-| Backend API | `server/` | Bun + Express 4 | `server/src/index.ts` → `server/src/app.ts` (+ `server/src/workers/index.ts` for jobs) |
+| Backend API | `server/` | Bun + Express 4 | `server/src/index.ts` → `server/src/app.ts` (+ `server/src/workers/meal-analysis.workers.ts` for jobs) |
 | Static docs | `docs/` | HTML | Privacy / delete-account pages |
 | Shared assets | `assets/` | PNG | `banner.png`, `architecture.png` (README) |
 
@@ -43,17 +43,18 @@ NutriSnap/
 │   ├── src/
 │   │   ├── app.ts          # Express app: cors, /api/webhooks (raw), json(10mb), requestLogger, clerkMiddleware, /health, /api
 │   │   ├── index.ts        # Entry: app.listen(env.PORT)
-│   │   ├── config/env.ts  # Zod-validated env (dotenv)
-│   │   ├── routes/         # ai.routes.ts (POST /aifood 202 + GET /aifood/:id), uploads.routes.ts (POST /uploads/presign), webhooks.routes.ts (POST /webhooks/clerk), ai.controller.ts (thin handlers)
-│   │   ├── middlewares/    # auth, rate-limit (aifood + presign), async, error, request-logger + express.d.ts (req.auth)
-│   │   ├── services/       # ai.service.ts, ai.prompt.ts, ai.parser.ts, clerk-sync.service.ts
-│   │   ├── lib/            # ai-model.ts (ChatOpenAI factory), prisma.ts (singleton), r2.ts (presigned URLs)
-│   │   ├── schemas/        # meal.schema.ts, nutrition.schema.ts
-│   │   ├── queues/         # meal-analysis.queue.ts (BullMQ enqueue)
-│   │   ├── processors/     # meal-analysis.processor.ts (job handler)
+│   │   ├── config/env.config.ts  # Zod-validated env (dotenv)
+│   │   ├── routes/         # meal-analysis.routes.ts (POST /aifood 202 + GET /aifood/:id), uploads.routes.ts (POST /uploads/presign), webhooks.routes.ts (POST /webhooks/clerk)
+│   │   ├── controllers/    # meal-analysis.controllers.ts (thin handlers)
+│   │   ├── middlewares/    # auth, rate-limit (aifood + presign), async, error, request-logger + express.middlewares.d.ts (req.auth)
+│   │   ├── services/       # meal-analysis.services.ts (prompt + parser + service), clerk-sync.services.ts
+│   │   ├── lib/            # openai.lib.ts (ChatOpenAI factory), prisma.lib.ts (singleton), r2.lib.ts (presigned URLs)
+│   │   ├── schemas/        # meal.schemas.ts, nutrition.schemas.ts
+│   │   ├── queues/         # meal-analysis.queues.ts (BullMQ enqueue)
+│   │   ├── processors/     # meal-analysis.processors.ts (job handler)
 │   │   ├── workers/        # index.ts (worker entry: dev:worker/start:worker)
-│   │   ├── repositories/   # users.repository.ts, meal-analyses.repository.ts (Prisma data access)
-│   │   └── utils/          # logger (pino), image (mime/base64 helpers)
+│   │   ├── repositories/   # users.repositories.ts, meal-analyses.repositories.ts (Prisma data access)
+│   │   └── utils/          # logger.utils.ts (pino), image.utils.ts (mime/base64 helpers)
 │   ├── prisma/             # schema.prisma (User, MealAnalysis) + migrations/
 │   ├── prisma7.config.ts   # Prisma 7 config (DATABASE_URL) — pass --config to CLI
 │   └── tsconfig.json       # Bundler, strict, noEmit, allowImportingTsExtensions
@@ -79,7 +80,7 @@ Path alias: `@/*` maps to repo root of `mobile/` per `mobile/tsconfig.json:5` (e
 - Runtime: Bun (`server/package.json:3` `module: src/index.ts`)
 - Framework: `express` 4.21, `@clerk/express` 2.1.56, `cors` 2.8, `express-rate-limit` 8.6
 - AI: `@langchain/core` 1.2 + `@langchain/openai` 1.5 (`ChatOpenAI`), model `gpt-4o-mini` (configurable)
-- Jobs: `bullmq` 6 (Redis via `REDIS_URL`); separate worker entry `src/workers/index.ts`
+- Jobs: `bullmq` 6 (Redis via `REDIS_URL`); separate worker entry `src/workers/meal-analysis.workers.ts`
 - Storage: `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` against Cloudflare R2 (private bucket, short-lived presigned PUT/GET)
 - DB: `prisma` 7 + `@prisma/client` + `@prisma/adapter-pg` (`pg`), schema in `prisma/schema.prisma`, config `prisma7.config.ts` (pass `--config` to CLI)
 - Webhooks: `svix` (Clerk `user.created/updated/deleted` → `users` table)
@@ -95,13 +96,13 @@ Path alias: `@/*` maps to repo root of `mobile/` per `mobile/tsconfig.json:5` (e
 2. `mobile/src/app/(app)/(tabs)/index.tsx` normalizes the pick (`prepareMealImage`: ≤1024px JPEG) → `POST /api/uploads/presign` → PUTs the JPEG straight to private R2 via the presigned URL → `POST /api/aifood` (`{imageKey}`).
 3. Server `server/src/app.ts` — middleware order matters: `cors()` → `/api/webhooks` on `express.raw()` (Svix needs raw bytes) → `express.json({limit:"10mb"})` → `requestLogger` → `clerkMiddleware()` → `/health` → `/api` → `notFoundHandler` → `errorHandler`.
 4. `POST /api/aifood` chain: `requireAuth` (401 if missing) → `analyzeMealRateLimiter` (20 req/hour, key = `userId` or `ipKeyGenerator(ip)`) → HEAD-checks the R2 object (422 if missing/too large) → creates `QUEUED` `MealAnalysis` row → BullMQ enqueue → `202 {analysisId}`.
-5. Worker (`src/workers/index.ts`, concurrency 3) downloads from R2 → `aiService.analyzeMeal` (same retry/parse/validate pipeline, now returns structured `analysis` + `message`) → persists `SUCCEEDED` row (nutrition columns + formatted `message`) or `FAILED` with user-facing error; provider failures throw so BullMQ retries (2 attempts, exponential backoff).
+5. Worker (`src/workers/meal-analysis.workers.ts`, concurrency 3) downloads from R2 → `aiService.analyzeMeal` (same retry/parse/validate pipeline, now returns structured `analysis` + `message`) → persists `SUCCEEDED` row (nutrition columns + formatted `message`) or `FAILED` with user-facing error; provider failures throw so BullMQ retries (2 attempts, exponential backoff).
 6. Mobile polls `GET /api/aifood/:id` (2.5s interval, 4min timeout in `meals-api.ts`) → on `SUCCEEDED` renders `message` via the existing `extractJsonBlock`/`parseNutritionData`/`extractMarkdown` path (score circle + macro rows + Markdown). `GET` also returns a fresh short-lived `imageUrl` (presigned R2 GET).
 7. Clerk dashboard webhook → `POST /api/webhooks/clerk` (Svix-verified, `user.created/updated/deleted`) → upserts/deletes the `users` row; API calls `ensureUser` (lazy backstop via Clerk API) so FK constraints always hold.
 
 ### Boundaries
 - Mobile never calls the AI provider or R2 directly except via server-issued short-lived presigned URLs; all AI goes through the job pipeline.
-- Postgres persists `users` + `meal-analyses`; Redis holds BullMQ jobs; R2 holds private images (never public). Auth state lives in Clerk. `GET /health` is unauthenticated, excluded from request logs (`request-logger.middleware.ts:15`).
+- Postgres persists `users` + `meal-analyses`; Redis holds BullMQ jobs; R2 holds private images (never public). Auth state lives in Clerk. `GET /health` is unauthenticated, excluded from request logs (`request-logger.middlewares.ts:15`).
 - Validation is duplicated: client (`mobile/src/lib/validation.ts`, `nutrition.ts`, `meals-api.ts`) and server (Zod schemas) — keep in sync.
 
 ## 5. Development Workflow
@@ -129,7 +130,7 @@ npm run web            # expo start --web
 # server — from server/
 bun --watch src/index.ts   # npm run dev
 bun src/index.ts           # npm run start (prod)
-bun --watch src/workers/index.ts  # npm run dev:worker (BullMQ, needs Redis up)
+bun --watch src/workers/meal-analysis.workers.ts  # npm run dev:worker (BullMQ, needs Redis up)
 # If Bun task runner not available, use npx bun or node with tsx equivalent
 ```
 
@@ -141,7 +142,7 @@ bunx --bun prisma migrate dev --name <name> --config prisma7.config.ts
 bunx --bun prisma generate --config prisma7.config.ts  # or: npm run prisma:generate
 ```
 
-Mobile requires env before start (see §10). Server reads `.env.development` (or `.env.production` when `NODE_ENV=production`) via `dotenv` in `server/src/config/env.ts:1`.
+Mobile requires env before start (see §10). Server reads `.env.development` (or `.env.production` when `NODE_ENV=production`) via `dotenv` in `server/src/config/env.config.ts:1`.
 
 ### Build / Deploy (EAS)
 
@@ -181,30 +182,30 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 
 - **TypeScript strict** — both `tsconfig.json` set `strict:true`, `noUncheckedIndexedAccess:true`. Fix type errors rather than suppressing. Server uses `verbatimModuleSyntax` + `.js` extension imports.
 - **Absolute imports (mobile)** — use `@/src/...` alias (`mobile/tsconfig.json:5` `@/* -> ./*`). Prefer `@/src/...` over deep relative paths for cross-directory imports. Server uses relative `./...js` ESM imports.
-- **Validation with Zod** — MUST validate all external input with Zod. Client: `mobile/src/lib/validation.ts` (signIn/signUp), `mobile/src/lib/nutrition.ts` (apiErrorSchema/analyzeResponseSchema), `mobile/src/lib/meals-api.ts` (presign/enqueue/poll schemas). Server: `server/src/schemas/meal.schema.ts`, `server/src/schemas/nutrition.schema.ts`, `clerk-sync.service.ts` (`clerkWebhookEventSchema`). Use `safeParse`, return first issue message on 400.
-- **Error handling** — Mobile: `index.tsx` orchestrates presign → PUT → enqueue → poll, handles 401 (signOut), non-ok JSON via `apiErrorSchema`, `AUTH_EXPIRED`/timeout via user-facing error modal + haptics; stale attempts ignored via `attemptRef`. Server: `202` on enqueue; `GET /:id` returns `QUEUED|PROCESSING` (200), `SUCCEEDED` (200 + `message`), `FAILED` (422 + `error`), `404` on foreign id; `503` when R2 is unconfigured; `error.middleware.ts` handles `entity.too.large` → 413 and logs via `req.log ?? logger`.
+- **Validation with Zod** — MUST validate all external input with Zod. Client: `mobile/src/lib/validation.ts` (signIn/signUp), `mobile/src/lib/nutrition.ts` (apiErrorSchema/analyzeResponseSchema), `mobile/src/lib/meals-api.ts` (presign/enqueue/poll schemas). Server: `server/src/schemas/meal.schemas.ts`, `server/src/schemas/nutrition.schemas.ts`, `clerk-sync.services.ts` (`clerkWebhookEventSchema`). Use `safeParse`, return first issue message on 400.
+- **Error handling** — Mobile: `index.tsx` orchestrates presign → PUT → enqueue → poll, handles 401 (signOut), non-ok JSON via `apiErrorSchema`, `AUTH_EXPIRED`/timeout via user-facing error modal + haptics; stale attempts ignored via `attemptRef`. Server: `202` on enqueue; `GET /:id` returns `QUEUED|PROCESSING` (200), `SUCCEEDED` (200 + `message`), `FAILED` (422 + `error`), `404` on foreign id; `503` when R2 is unconfigured; `error.middlewares.ts` handles `entity.too.large` → 413 and logs via `req.log ?? logger`.
 - **API conventions** — JSON over HTTPS; `POST /api/uploads/presign` (no body) → `{key, uploadUrl, expiresInSec}`; `POST /api/aifood` body `{imageKey: string}` (must be under caller's `meals/<userId>/` prefix) → `202 {analysisId, status}`; `GET /api/aifood/:id` → status/result; `POST /api/webhooks/clerk` takes raw Svix body. Health check `GET /health → {status:"ok"}`.
-- **Logging** — Use `server/src/utils/logger.ts` (pino). Request logger adds `userId` prop, auto-ignores `/health`, maps 5xx→error/4xx→warn. Never log `Authorization`/`Cookie` (redacted). Client uses `console.error`/`console.warn` only in `__DEV__` / catch blocks.
+- **Logging** — Use `server/src/utils/logger.utils.ts` (pino). Request logger adds `userId` prop, auto-ignores `/health`, maps 5xx→error/4xx→warn. Never log `Authorization`/`Cookie` (redacted). Client uses `console.error`/`console.warn` only in `__DEV__` / catch blocks.
 - **Naming** — Components `PascalCase` (`PrimaryButton.tsx`), hooks `useXxx`, route groups `(auth)`/`(app)`/`(tabs)`, Zod schemas `xxxSchema`, logger `logger`, env `env`.
 - **Styling** — Inline `StyleSheet.create` with theme tokens; never hardcode colors — use `useTheme().colors` + `radius`/`spacing` from `mobile/src/theme/index.tsx`. Dark/light variants required if adding UI.
-- **Exports** — Prefer factory functions (`createAiController`, `createMealAnalysisModel`, `createAiService`) for testability/DI over singletons, except exported singleton `aiService` in `services/ai.service.ts:156` for wiring.
+- **Exports** — Prefer factory functions (`createAiController`, `createMealAnalysisModel`, `createAiService`) for testability/DI over singletons, except exported singleton `aiService` in `services/meal-analysis.services.ts:319` for wiring.
 
 ## 7. AI/Agent Development Rules
 
-- **MUST inspect existing code before adding abstractions** — read target file + neighbours (e.g., existing `utils/image.ts`, `theme/index.tsx`) and reuse.
+- **MUST inspect existing code before adding abstractions** — read target file + neighbours (e.g., existing `utils/image.utils.ts`, `theme/index.tsx`) and reuse.
 - **MUST reuse existing utilities/components** — `PrimaryButton`, `FormInput`, `Typography`, `useTheme`, `healthScoreColor`, `parseNutritionData`, `prepareMealImage`, `pollAnalysisUntilDone`, `toImageDataUri`/`detectImageMimeType`, `logger`, `asyncHandler`, `enqueueMealAnalysis`, `ensureUser`, repositories (`users`, `meal-analyses`).
 - **MUST preserve architecture** — schema changes via Prisma migrate (never hand-edit migrations); do not add another auth provider or call the AI provider from mobile. Keep middleware order in `server/src/app.ts` (webhooks raw-first) and rate-limit keying (`userId ?? ip`).
 - **MUST keep changes scoped** — modify only files required by the task. Do not reformat unrelated files, bump deps, or regenerate `expo-env.d.ts`/`dist/`.
 - **SHOULD avoid new dependencies** — prefer existing libs (Zod, LangChain, Pino). If a dep is required, justify and use the lightest ESM-compatible option.
 - **MUST never expose secrets** — do not log `OPENAI_API_KEY`/`CLERK_SECRET_KEY`, never commit `.env.local`/`.env.production`/any `.env` containing values, never inline secrets in code or docs.
-- **MUST validate env** — add new env vars to `mobile/src/config/env.ts` or `server/src/config/env.ts` with Zod; update `.env.example` accordingly (values empty).
-- **MUST follow existing patterns** — factory `createX`, `safeParse` + early return, `req.auth` augmentation via `server/src/middlewares/express.d.ts`, haptics + a11y props on mobile touchables.
+- **MUST validate env** — add new env vars to `mobile/src/config/env.ts` or `server/src/config/env.config.ts` with Zod; update `.env.example` accordingly (values empty).
+- **MUST follow existing patterns** — factory `createX`, `safeParse` + early return, `req.auth` augmentation via `server/src/middlewares/express.middlewares.d.ts`, haptics + a11y props on mobile touchables.
 
 ## 8. Mobile Development
 
 - **Expo Router** — File-based; groups `(auth)` and `(app)` are route groups (parentheses stripped). `_layout.tsx` per group handles auth gating (`useAuth().isLoaded/isSignedIn` + `Redirect`). Tabs defined in `(tabs)/_layout.tsx` with `Tabs`, `screenListeners.tabPress → Haptics.selectionAsync()`, absolute floating tabBar style. Enable `typedRoutes:true` + `reactCompiler:true` (`app.config.ts:68-71`) — typed `Link` hrefs required.
 - **Clerk auth** — `ClerkProvider` + `tokenCache` from `@clerk/expo/token-cache` + `expo-secure-store` (`mobile/src/app/_layout.tsx:16`). Use `useAuth()`/`useSignIn()`/`useUser()`. Send `Authorization: Bearer ${await getToken()}` for API calls. On 401/missing token, `signOut()` and show user-facing message. See `sso-callback.tsx`, `GoogSignIn.tsx` for OAuth flow.
-- **Image flow** — `expo-image-picker` with `quality:1`, `allowsEditing:true`. Normalize via `prepareMealImage` (`meal-image.ts`: ≤1024px JPEG via `expo-image-manipulator`, also converts HEIC) → `POST /api/uploads/presign` → PUT via `expo-file-system/legacy` `uploadAsync` (`BINARY_CONTENT`, `Content-Type: image/jpeg`) → `POST /api/aifood` → poll with `pollAnalysisUntilDone` (`meals-api.ts`). Request `MediaLibrary` permission first. Server caps uploads at 5 MiB (`lib/r2.ts:16`); presigned PUT URLs expire in 5 min.
+- **Image flow** — `expo-image-picker` with `quality:1`, `allowsEditing:true`. Normalize via `prepareMealImage` (`meal-image.ts`: ≤1024px JPEG via `expo-image-manipulator`, also converts HEIC) → `POST /api/uploads/presign` → PUT via `expo-file-system/legacy` `uploadAsync` (`BINARY_CONTENT`, `Content-Type: image/jpeg`) → `POST /api/aifood` → poll with `pollAnalysisUntilDone` (`meals-api.ts`). Request `MediaLibrary` permission first. Server caps uploads at 5 MiB (`lib/r2.lib.ts:16`); presigned PUT URLs expire in 5 min.
 - **Data fetching** — Raw `fetch` in `index.tsx` (no React Query/SWR currently). Presign/enqueue validate with `meals-api.ts` schemas, errors via `apiErrorSchema`, result `message` via the `nutrition.ts` path. If adding hooks, co-locate near `src/hooks/` or `src/lib/meals-api.ts`.
 - **UI / Theme** — `ThemeProvider` (`src/theme/index.tsx:148`) reads `SecureStore` key `nutrisnap_theme_mode`, syncs with `useColorScheme`, exposes `colors`, `isDark`, `cardShadow`/`buttonShadow`, `setThemeMode`. Use `lightColors`/`darkColors` tokens; helpers `healthScoreColor(score, colors)` / `scoreLabel(score)`. All screens use `SafeAreaView` + `useSafeAreaInsets`. Apply `buttonShadow`/`cardShadow` from theme (light vs dark variants at `theme/index.tsx:96-114`).
 - **OTA** — `useOTAUpdate` (`src/hooks/useOTAUpdate.ts`) wraps `expo-updates` with cooldown 30 min, auto-download, AppState foreground check. Displayed via `OTAUpdatePrompt` component. Do not break the `isUpdatePending`/`isUpdateAvailable` flow.
@@ -214,29 +215,29 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 
 ## 9. Backend Development
 
-- **Structure** — Thin routes → controllers → services → AI/model. Routes wire deps (`routes/ai.routes.ts:9` `createAiController()` with injectable `MealAnalysisDeps`). Controllers are pure request/response + Zod parse; services own retry/business logic.
-- **Auth** — `clerkMiddleware()` must stay before protected routes (`app.ts:13`). `requireAuth` (`middlewares/auth.middleware.ts:12`) checks `getAuth(req).userId`, sets `req.auth` (typed via `middlewares/express.d.ts`), 401 if absent.
-- **Rate limiting** — `analyzeMealRateLimiter` (`middlewares/rate-limit.middleware.ts:11`): 20 req / 1 h, `keyGenerator: req.auth?.userId ?? ipKeyGenerator(ip)`, `standardHeaders draft-8`. Order after `requireAuth` so userId is available.
-- **Validation** — `enqueueMealAnalysisSchema` (`schemas/meal.schema.ts:4`) enforces non-empty `imageKey`; controller additionally checks the key prefix (`isUserImageKey`), R2 HEAD existence and `MAX_UPLOAD_BYTES` (5 MiB). Image helpers in `utils/image.ts` sniff magic bytes (JPEG/PNG/WebP/GIF), handle `data:image/...;base64,` prefixes. Controller maps outcomes to status codes (422 for invalid-image/not-food/invalid-ai-response, 502 for provider-failure).
-- **AI** — `ChatOpenAI` (`lib/ai-model.ts:4`) configured from env (`OPENAI_API_KEY`, `OPENAI_VISION_MODEL`, `AI_TEMPERATURE`, timeout 30s). Prompt in `services/ai.prompt.ts:3` forces raw JSON only. Parser `services/ai.parser.ts:20` tries 3 strategies (`tryExtractJson`, ` ```json ``` `, ` ``` ``` `) and validates via `nutritionAnalysisSchema`. Helpers `isFoodAnalysis`/`formatNutritionMessage` produce the wire format consumed by mobile.
-- **Retry** — `services/ai.service.ts:55` `invokeWithRetry` retries 3× with exponential backoff (`BASE_DELAY_MS 1s`), special-cases 429/`rate_limit` and `retry-after` header. Logs each retry via `logger.warn`.
-- **Error & logging** — `error.middleware.ts:17` maps `entity.too.large` → 413, logs unhandled via `req.log ?? logger` with method/url/err, returns 500 generic. `request-logger.middleware.ts` uses `pino-http`, ignores `/health`, adds `userId`. `logger.ts:17` uses `pino` with `LOG_LEVEL`, `isoTime`, redacts auth/cookie, pretty-prints only when `NODE_ENV=development`.
+- **Structure** — Thin routes → controllers → services → AI/model. Routes wire deps (`routes/meal-analysis.routes.ts:8` `createAiController()` with injectable `MealAnalysisDeps`). Controllers are pure request/response + Zod parse; services own retry/business logic.
+- **Auth** — `clerkMiddleware()` must stay before protected routes (`app.ts:13`). `requireAuth` (`middlewares/auth.middlewares.ts:12`) checks `getAuth(req).userId`, sets `req.auth` (typed via `middlewares/express.middlewares.d.ts`), 401 if absent.
+- **Rate limiting** — `analyzeMealRateLimiter` (`middlewares/rate-limit.middlewares.ts:11`): 20 req / 1 h, `keyGenerator: req.auth?.userId ?? ipKeyGenerator(ip)`, `standardHeaders draft-8`. Order after `requireAuth` so userId is available.
+- **Validation** — `enqueueMealAnalysisSchema` (`schemas/meal.schemas.ts:4`) enforces non-empty `imageKey`; controller additionally checks the key prefix (`isUserImageKey`), R2 HEAD existence and `MAX_UPLOAD_BYTES` (5 MiB). Image helpers in `utils/image.utils.ts` sniff magic bytes (JPEG/PNG/WebP/GIF), handle `data:image/...;base64,` prefixes. Controller maps outcomes to status codes (422 for invalid-image/not-food/invalid-ai-response, 502 for provider-failure).
+- **AI** — `ChatOpenAI` (`lib/openai.lib.ts:4`) configured from env (`OPENAI_API_KEY`, `OPENAI_VISION_MODEL`, `AI_TEMPERATURE`, timeout 30s). Prompt section in `services/meal-analysis.services.ts:21` forces raw JSON only. Parser section (`parseNutritionText`, `:88`) tries 3 strategies (`tryExtractJson`, ` ```json ``` `, ` ``` ``` `) and validates via `nutritionAnalysisSchema`. Helpers `isFoodAnalysis`/`formatNutritionMessage` produce the wire format consumed by mobile.
+- **Retry** — `services/meal-analysis.services.ts:220` `invokeWithRetry` retries 3× with exponential backoff (`BASE_DELAY_MS 1s`), special-cases 429/`rate_limit` and `retry-after` header. Logs each retry via `logger.warn`.
+- **Error & logging** — `error.middlewares.ts:17` maps `entity.too.large` → 413, logs unhandled via `req.log ?? logger` with method/url/err, returns 500 generic. `request-logger.middlewares.ts` uses `pino-http`, ignores `/health`, adds `userId`. `logger.utils.ts:17` uses `pino` with `LOG_LEVEL`, `isoTime`, redacts auth/cookie, pretty-prints only when `NODE_ENV=development`.
 - **CORS/Body** — `cors()` default allow; `/api/webhooks` on `express.raw()` must precede `express.json({limit:"10mb"})` (Svix needs raw bytes; body-parser skips consumed requests). JSON errors handled by `errorHandler`.
-- **Do not** bypass Zod, lower `MAX_UPLOAD_BYTES` (`lib/r2.ts`) without updating mobile prep size, or increase `json limit` beyond rate-limit intent.
-- **Jobs** — BullMQ queue `meal-analysis` (`queues/meal-analysis.queue.ts`): job id = `MealAnalysis` row id (idempotent), 2 attempts with exponential backoff. Processor (`processors/meal-analysis.processor.ts`) downloads from R2 → `aiService.analyzeMeal` → persists row; terminal failures via `UnrecoverableError`, transient provider failures rethrown for retry. Worker entry `workers/index.ts` (concurrency 3, graceful SIGTERM/SIGINT).
-- **Storage** — Private R2 bucket, never public. `lib/r2.ts`: `buildMealImageKey` (`meals/<userId>/<uuid>.jpg`), `isUserImageKey` prefix guard, short-lived presigned PUT (`R2_PRESIGN_PUT_TTL_SEC`) / GET (`R2_PRESIGN_GET_TTL_SEC`). `isR2Configured()` gates routes with `503` when creds are absent — never log `R2_SECRET_ACCESS_KEY`.
-- **DB** — Prisma 7 via `lib/prisma.ts` singleton (`PrismaPg` adapter; reuse across `--watch` reloads). Data access only through `repositories/`; schema changes via `migrate dev`, never hand-edit `prisma/migrations/`. `MealAnalysis.user` has `onDelete: Cascade` (Clerk `user.deleted` wipes history).
+- **Do not** bypass Zod, lower `MAX_UPLOAD_BYTES` (`lib/r2.lib.ts`) without updating mobile prep size, or increase `json limit` beyond rate-limit intent.
+- **Jobs** — BullMQ queue `meal-analysis` (`queues/meal-analysis.queues.ts`): job id = `MealAnalysis` row id (idempotent), 2 attempts with exponential backoff. Processor (`processors/meal-analysis.processors.ts`) downloads from R2 → `aiService.analyzeMeal` → persists row; terminal failures via `UnrecoverableError`, transient provider failures rethrown for retry. Worker entry `workers/meal-analysis.workers.ts` (concurrency 3, graceful SIGTERM/SIGINT).
+- **Storage** — Private R2 bucket, never public. `lib/r2.lib.ts`: `buildMealImageKey` (`meals/<userId>/<uuid>.jpg`), `isUserImageKey` prefix guard, short-lived presigned PUT (`R2_PRESIGN_PUT_TTL_SEC`) / GET (`R2_PRESIGN_GET_TTL_SEC`). `isR2Configured()` gates routes with `503` when creds are absent — never log `R2_SECRET_ACCESS_KEY`.
+- **DB** — Prisma 7 via `lib/prisma.lib.ts` singleton (`PrismaPg` adapter; reuse across `--watch` reloads). Data access only through `repositories/`; schema changes via `migrate dev`, never hand-edit `prisma/migrations/`. `MealAnalysis.user` has `onDelete: Cascade` (Clerk `user.deleted` wipes history).
 - **Webhooks** — `POST /api/webhooks/clerk` is UNAUTHENTICATED (no `requireAuth`); trust comes from Svix signature only. Upsert on `user.created/updated`, delete on `user.deleted`; `ensureUser` lazy backstop on authenticated calls.
 
 ## 10. Environment Variables and Secrets
 
-- **Files** — `mobile/.env.example` and `server/.env.example` are templates (commit). Actual values live in `mobile/.env.local` and `server/.env.development` (+ `server/.env.production`) — these are **ignored** (`mobile/.gitignore:34-45`, `server/.gitignore:18-24`) and MUST NOT be committed. Server loads via `dotenv` (`server/src/config/env.ts:1`); mobile vars are injected at build via Expo (`EXPO_PUBLIC_*`).
+- **Files** — `mobile/.env.example` and `server/.env.example` are templates (commit). Actual values live in `mobile/.env.local` and `server/.env.development` (+ `server/.env.production`) — these are **ignored** (`mobile/.gitignore:34-45`, `server/.gitignore:18-24`) and MUST NOT be committed. Server loads via `dotenv` (`server/src/config/env.config.ts:1`); mobile vars are injected at build via Expo (`EXPO_PUBLIC_*`).
 
 - **Mobile (`mobile/src/config/env.ts:3-13`)**
   - `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` — **required**, non-empty string.
   - `EXPO_PUBLIC_SERVER_URL` — optional, valid URL (omit scheme trailing slash). Example: `http://192.168.x.x:3000` (LAN IP for device). Validation throws `Invalid environment configuration` on startup if missing/invalid.
 
-- **Server (`server/src/config/env.ts:4-14`)**
+- **Server (`server/src/config/env.config.ts:4-14`)**
   - `PORT` — int positive, default `3000`.
   - `NODE_ENV` — `development|test|production`, default `production` (logger uses raw `process.env.NODE_ENV` for pretty vs JSON).
   - `LOG_LEVEL` — `fatal|error|warn|info|debug|trace`, default `info`.
@@ -303,7 +304,7 @@ Run **only** checks that exist; skip absent ones (no tests).
   ```bash
   cd server && bun src/index.ts   # verify /health
   curl http://localhost:3000/health  # expect {"status":"ok"}
-  cd server && bun src/workers/index.ts  # worker connects to Redis, no crash
+  cd server && bun src/workers/meal-analysis.workers.ts  # worker connects to Redis, no crash
   ```
   Without R2 creds, `POST /api/uploads/presign` must return `503` (not crash); `POST /api/webhooks/clerk` without signature must return `400`.
 - [ ] **Migration check** (if touching `prisma/schema.prisma`)

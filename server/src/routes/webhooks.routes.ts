@@ -1,13 +1,13 @@
 import { Router } from "express";
 import { Webhook } from "svix";
-import { env } from "../config/env.js";
+import { env } from "../config/env.config.js";
 import {
   clerkWebhookEventSchema,
   removeClerkUser,
   syncClerkUser,
   toUpsertInput,
-} from "../services/clerk-sync.service.js";
-import { logger } from "../utils/logger.js";
+} from "../services/clerk-sync.services.js";
+import { logger } from "../utils/logger.utils.js";
 
 const router = Router();
 

@@ -1,15 +1,15 @@
 import { UnrecoverableError, type Job } from "bullmq";
-import { env } from "../config/env.js";
-import { downloadObject, headObject, MAX_UPLOAD_BYTES } from "../lib/r2.js";
+import { env } from "../config/env.config.js";
+import { downloadObject, headObject, MAX_UPLOAD_BYTES } from "../lib/r2.lib.js";
 import {
   findAnalysisById,
   markAnalysisFailed,
   markAnalysisStatus,
   markAnalysisSucceeded,
-} from "../repositories/meal-analyses.repository.js";
-import type { MealAnalysisJobData } from "../queues/meal-analysis.queue.js";
-import { aiService } from "../services/ai.service.js";
-import { logger } from "../utils/logger.js";
+} from "../repositories/meal-analyses.repositories.js";
+import type { MealAnalysisJobData } from "../queues/meal-analysis.queues.js";
+import { aiService } from "../services/meal-analysis.services.js";
+import { logger } from "../utils/logger.utils.js";
 
 function toUserErrorMessage(status: "invalid-image" | "not-food" | "invalid-ai-response"): string {
   if (status === "not-food") {

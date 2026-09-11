@@ -1,11 +1,11 @@
 import { clerkMiddleware } from "@clerk/express";
 import express from "express";
 import cors from "cors";
-import aiRoutes from "./routes/ai.routes.js";
+import aiRoutes from "./routes/meal-analysis.routes.js";
 import uploadsRoutes from "./routes/uploads.routes.js";
 import webhooksRoutes from "./routes/webhooks.routes.js";
-import { errorHandler, notFoundHandler } from "./middlewares/error.middleware.js";
-import { requestLogger } from "./middlewares/request-logger.middleware.js";
+import { errorHandler, notFoundHandler } from "./middlewares/error.middlewares.js";
+import { requestLogger } from "./middlewares/request-logger.middlewares.js";
 
 const app = express();
 

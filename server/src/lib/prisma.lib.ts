@@ -1,5 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { env } from "../config/env.js";
+import { env } from "../config/env.config.js";
 import { PrismaClient } from "../../generated/prisma/client.js";
 
 declare global {

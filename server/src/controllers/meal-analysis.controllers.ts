@@ -1,6 +1,6 @@
 import type { RequestHandler } from "express";
 import type { ParamsDictionary } from "express-serve-static-core";
-import { env } from "../config/env.js";
+import { env } from "../config/env.config.js";
 import {
   buildMealImageKey,
   createDownloadUrl,
@@ -9,16 +9,16 @@ import {
   isR2Configured,
   isUserImageKey,
   MAX_UPLOAD_BYTES,
-} from "../lib/r2.js";
+} from "../lib/r2.lib.js";
 import {
   createQueuedAnalysis,
   findUserAnalysis,
-} from "../repositories/meal-analyses.repository.js";
-import { enqueueMealAnalysis } from "../queues/meal-analysis.queue.js";
-import { enqueueMealAnalysisSchema, mealAnalysisParamsSchema } from "../schemas/meal.schema.js";
-import { ensureUser } from "../services/clerk-sync.service.js";
-import { logger } from "../utils/logger.js";
-import type { User } from "../generated/prisma/client.js";
+} from "../repositories/meal-analyses.repositories.js";
+import { enqueueMealAnalysis } from "../queues/meal-analysis.queues.js";
+import { enqueueMealAnalysisSchema, mealAnalysisParamsSchema } from "../schemas/meal.schemas.js";
+import { ensureUser } from "../services/clerk-sync.services.js";
+import { logger } from "../utils/logger.utils.js";
+import type { User } from "../../generated/prisma/client.js";
 
 export type AnalyzeMealResponse = {
   readonly message: string;

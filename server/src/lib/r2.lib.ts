@@ -6,7 +6,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
-import { env } from "../config/env.js";
+import { env } from "../config/env.config.js";
 
 // Upper bound accepted for a meal photo. Mobile downscales to ~1024px JPEG
 // before upload, so legitimate uploads stay far below this; the cap only

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { logger } from "../utils/logger.js";
+import { logger } from "../utils/logger.utils.js";
 
 export function notFoundHandler(req: Request, res: Response): void {
   res.status(404).json({ error: `Route not found: ${req.originalUrl}` });

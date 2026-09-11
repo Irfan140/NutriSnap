@@ -1,5 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { env } from "../config/env.js";
+import { env } from "../config/env.config.js";
 
 export function createMealAnalysisModel(): ChatOpenAI {
   return new ChatOpenAI({

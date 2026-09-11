@@ -1,5 +1,5 @@
-import type { MealAnalysis, MealAnalysisStatus, Prisma } from "../generated/prisma/client.js";
-import { prisma } from "../lib/prisma.js";
+import type { MealAnalysis, MealAnalysisStatus, Prisma } from "../../generated/prisma/client.js";
+import { prisma } from "../lib/prisma.lib.js";
 
 export type SucceededAnalysisInput = {
   readonly nutrition: Prisma.InputJsonValue;

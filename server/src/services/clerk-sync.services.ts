@@ -1,13 +1,13 @@
 import { clerkClient } from "@clerk/express";
 import { z } from "zod";
-import type { User } from "../generated/prisma/client.js";
+import type { User } from "../../generated/prisma/client.js";
 import {
   deleteUserByClerkId,
   findUserByClerkId,
   upsertUserByClerkId,
   type UpsertUserInput,
-} from "../repositories/users.repository.js";
-import { logger } from "../utils/logger.js";
+} from "../repositories/users.repositories.js";
+import { logger } from "../utils/logger.utils.js";
 
 const clerkUserDataSchema = z.object({
   id: z.string().min(1),

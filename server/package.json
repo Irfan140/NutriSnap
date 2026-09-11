@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "NODE_ENV=development bun --watch src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
-    "dev:worker": "NODE_ENV=development bun --watch src/workers/index.ts",
-    "start:worker": "NODE_ENV=production bun src/workers/index.ts",
+    "dev:worker": "NODE_ENV=development bun --watch src/workers/meal-analysis.workers.ts",
+    "start:worker": "NODE_ENV=production bun src/workers/meal-analysis.workers.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
     "lint:fix": "eslint src --fix",

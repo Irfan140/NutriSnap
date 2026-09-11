@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { asyncHandler } from "../middlewares/async.middleware.js";
-import { requireAuth } from "../middlewares/auth.middleware.js";
-import { uploadPresignRateLimiter } from "../middlewares/rate-limit.middleware.js";
-import { createAiController } from "./ai.controller.js";
+import { asyncHandler } from "../middlewares/async.middlewares.js";
+import { requireAuth } from "../middlewares/auth.middlewares.js";
+import { uploadPresignRateLimiter } from "../middlewares/rate-limit.middlewares.js";
+import { createAiController } from "../controllers/meal-analysis.controllers.js";
 
 const router = Router();
 const aiController = createAiController();

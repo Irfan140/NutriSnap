@@ -1,13 +1,13 @@
 import { Worker } from "bullmq";
-import { env } from "../config/env.js";
-import { prisma } from "../lib/prisma.js";
-import { processMealAnalysis } from "../processors/meal-analysis.processor.js";
+import { env } from "../config/env.config.js";
+import { prisma } from "../lib/prisma.lib.js";
+import { processMealAnalysis } from "../processors/meal-analysis.processors.js";
 import {
   closeMealAnalysisQueue,
   MEAL_ANALYSIS_QUEUE_NAME,
   type MealAnalysisJobData,
-} from "../queues/meal-analysis.queue.js";
-import { logger } from "../utils/logger.js";
+} from "../queues/meal-analysis.queues.js";
+import { logger } from "../utils/logger.utils.js";
 
 const CONCURRENCY = 3;
 

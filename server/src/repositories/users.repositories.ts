@@ -1,5 +1,5 @@
-import type { User } from "../generated/prisma/client.js";
-import { prisma } from "../lib/prisma.js";
+import type { User } from "../../generated/prisma/client.js";
+import { prisma } from "../lib/prisma.lib.js";
 
 export type UpsertUserInput = {
   readonly clerkId: string;

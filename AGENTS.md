@@ -15,7 +15,7 @@ NutriSnap is a full-stack AI meal analyzer. Users authenticate (Clerk), pick a m
 | Static docs | `docs/` | HTML | Privacy / delete-account pages |
 | Shared assets | `assets/` | PNG | `banner.png`, `architecture.png` (README) |
 
-High-level flow (see `README.md:46-55`): `mobile` (Clerk token) → `POST /api/aifood` (base64 image) → Express validates auth/rate-limit/body/mime/size → LangChain `ChatGroq` (Groq vision model) → Zod validates model JSON → formatted `{"message": "..."}` → mobile parses ` ```json ` block + Markdown.
+High-level flow (see `README.md:46-55`): `mobile` (Clerk token) → `POST /api/aifood` (base64 image) → Express validates auth/rate-limit/body/mime/size → LangChain `ChatOpenAI` (OpenAI vision model) → Zod validates model JSON → formatted `{"message": "..."}` → mobile parses ` ```json ` block + Markdown.
 
 ## 2. Repository Structure
 
@@ -73,7 +73,7 @@ Path alias: `@/*` maps to repo root of `mobile/` per `mobile/tsconfig.json:5` (e
 **Server (`server/package.json:11-27`)**
 - Runtime: Bun (`server/package.json:3` `module: src/index.ts`)
 - Framework: `express` 4.21, `@clerk/express` 2.1.56, `cors` 2.8, `express-rate-limit` 8.6
-- AI: `@langchain/core` 1.2 + `@langchain/groq` 1.3 (`ChatGroq`), model `qwen/qwen3.6-27b` (configurable)
+- AI: `@langchain/core` 1.2 + `@langchain/openai` 1.5 (`ChatOpenAI`), model `gpt-4o-mini` (configurable)
 - Validation: `zod` 4.4.3 (request + AI output)
 - Logging: `pino` 10 + `pino-http` 11, `pino-pretty` (dev only) — redacts `authorization`/`cookie`
 - Env: `dotenv` 17
@@ -86,11 +86,11 @@ Path alias: `@/*` maps to repo root of `mobile/` per `mobile/tsconfig.json:5` (e
 3. Server `server/src/app.ts:10-19` — middleware order matters: `cors()` → `express.json({limit:"10mb"})` → `requestLogger` → `clerkMiddleware()` → `/health` → `/api` → `notFoundHandler` → `errorHandler`.
 4. `server/src/routes/ai.routes.ts:11` — `POST /api/aifood` chain: `requireAuth` (checks `getAuth(req).userId`, attaches `req.auth`, 401 if missing) → `analyzeMealRateLimiter` (20 req/hour, key = `userId` or `ipKeyGenerator(ip)`, 429 with custom JSON) → `asyncHandler(aiController.analyzeMeal)`.
 5. Controller `server/src/controllers/ai.controller.ts:17` validates body via `analyzeMealRequestSchema` (base64 check, `MAX_IMAGE_BASE64_LENGTH` 200 KiB, mime sniff JPEG/PNG/WebP/GIF). Delegates to `aiService.analyzeMeal`.
-6. Service `server/src/ai/service.ts:46` builds `nutritionPrompt.pipe(ChatGroq)` chain, `invokeWithRetry` (3 retries, exponential backoff, special 429 handling), parses via `parseNutritionText` (strips Qwen `thinking` preamble, tries raw/fenced JSON), validates with `nutritionBreakdownSchema`/`nutritionAnalysisSchema`, formats success as `` ```json\n{nutrition}\n```\n\n## Health Advice\n...\n## Alternative Suggestions\n...\n## Summary\n... ``.
+6. Service `server/src/ai/service.ts:46` builds `nutritionPrompt.pipe(ChatOpenAI)` chain, `invokeWithRetry` (3 retries, exponential backoff, special 429 handling), parses via `parseNutritionText` (tries raw/fenced JSON), validates with `nutritionBreakdownSchema`/`nutritionAnalysisSchema`, formats success as `` ```json\n{nutrition}\n```\n\n## Health Advice\n...\n## Alternative Suggestions\n...\n## Summary\n... ``.
 7. Mobile parses `analyzeResponseSchema` → `extractJsonBlock` → `parseNutritionData` → `extractMarkdown` and renders score circle + macro rows + Markdown.
 
 ### Boundaries
-- Mobile never calls Groq directly; all AI goes through `POST /api/aifood`.
+- Mobile never calls the AI provider directly; all AI goes through `POST /api/aifood`.
 - Server is stateless; no DB. Auth state lives in Clerk. `GET /health` is unauthenticated, excluded from request logs (`request-logger.middleware.ts:15`).
 - Validation is duplicated: client (`mobile/src/lib/validation.ts`, `nutrition.ts`) and server (Zod schemas) — keep in sync.
 
@@ -172,10 +172,10 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 
 - **MUST inspect existing code before adding abstractions** — read target file + neighbours (e.g., existing `utils/image.ts`, `theme/index.tsx`) and reuse.
 - **MUST reuse existing utilities/components** — `PrimaryButton`, `FormInput`, `Typography`, `useTheme`, `healthScoreColor`, `parseNutritionData`, `fieldErrorMessage`, `toImageDataUri`/`detectImageMimeType`, `logger`, `asyncHandler`.
-- **MUST preserve architecture** — do not add DB, new auth provider, or call Groq from mobile. Keep middleware order in `server/src/app.ts` and rate-limit keying (`userId ?? ip`).
+- **MUST preserve architecture** — do not add DB, new auth provider, or call the AI provider from mobile. Keep middleware order in `server/src/app.ts` and rate-limit keying (`userId ?? ip`).
 - **MUST keep changes scoped** — modify only files required by the task. Do not reformat unrelated files, bump deps, or regenerate `expo-env.d.ts`/`dist/`.
 - **SHOULD avoid new dependencies** — prefer existing libs (Zod, LangChain, Pino). If a dep is required, justify and use the lightest ESM-compatible option.
-- **MUST never expose secrets** — do not log `GROQ_API_KEY`/`CLERK_SECRET_KEY`, never commit `.env.local`/`.env.production`/any `.env` containing values, never inline secrets in code or docs.
+- **MUST never expose secrets** — do not log `OPENAI_API_KEY`/`CLERK_SECRET_KEY`, never commit `.env.local`/`.env.production`/any `.env` containing values, never inline secrets in code or docs.
 - **MUST validate env** — add new env vars to `mobile/src/config/env.ts` or `server/src/config/env.ts` with Zod; update `.env.example` accordingly (values empty).
 - **MUST follow existing patterns** — factory `createX`, `safeParse` + early return, `req.auth` augmentation via `server/src/types/express.d.ts`, haptics + a11y props on mobile touchables.
 
@@ -197,7 +197,7 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 - **Auth** — `clerkMiddleware()` must stay before protected routes (`app.ts:13`). `requireAuth` (`middleware/auth.middleware.ts:12`) checks `getAuth(req).userId`, sets `req.auth` (typed via `types/express.d.ts`), 401 if absent.
 - **Rate limiting** — `analyzeMealRateLimiter` (`middleware/rate-limit.middleware.ts:11`): 20 req / 1 h, `keyGenerator: req.auth?.userId ?? ipKeyGenerator(ip)`, `standardHeaders draft-8`. Order after `requireAuth` so userId is available.
 - **Validation** — `analyzeMealRequestSchema` (`schemas/request.schema.ts:4`) enforces `isBase64Image`, `!isImageTooLarge` (200 KiB), `detectImageMimeType !== null`. Image helpers in `utils/image.ts` sniff magic bytes (JPEG/PNG/WebP/GIF), handle `data:image/...;base64,` prefixes. Controller maps outcomes to status codes (422 for invalid-image/not-food/invalid-ai-response, 502 for provider-failure).
-- **AI** — `ChatGroq` (`ai/model.ts:4`) configured from env (`GROQ_API_KEY`, `GROQ_VISION_MODEL`, `AI_TEMPERATURE`, timeout 30s). Prompt in `ai/prompts.ts:3` forces raw JSON only. Parser `parsers.ts:20` strips Qwen `thinking` preamble, tries 3 strategies (`tryExtractJson`, ` ```json ``` `, ` ``` ``` `) and validates via `nutritionAnalysisSchema`. Helpers `isFoodAnalysis`/`formatNutritionMessage` produce the wire format consumed by mobile.
+- **AI** — `ChatOpenAI` (`ai/model.ts:4`) configured from env (`OPENAI_API_KEY`, `OPENAI_VISION_MODEL`, `AI_TEMPERATURE`, timeout 30s). Prompt in `ai/prompts.ts:3` forces raw JSON only. Parser `parsers.ts:20` tries 3 strategies (`tryExtractJson`, ` ```json ``` `, ` ``` ``` `) and validates via `nutritionAnalysisSchema`. Helpers `isFoodAnalysis`/`formatNutritionMessage` produce the wire format consumed by mobile.
 - **Retry** — `service.ts:55` `invokeWithRetry` retries 3× with exponential backoff (`BASE_DELAY_MS 1s`), special-cases 429/`rate_limit` and `retry-after` header. Logs each retry via `logger.warn`.
 - **Error & logging** — `error.middleware.ts:17` maps `entity.too.large` → 413, logs unhandled via `req.log ?? logger` with method/url/err, returns 500 generic. `request-logger.middleware.ts` uses `pino-http`, ignores `/health`, adds `userId`. `logger.ts:17` uses `pino` with `LOG_LEVEL`, `isoTime`, redacts auth/cookie, pretty-prints only when `NODE_ENV=development`.
 - **CORS/Body** — `cors()` default allow, `express.json({limit:"10mb"})` must precede body parsing errors (handled by `errorHandler`).
@@ -215,10 +215,10 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
   - `PORT` — int positive, default `3000`.
   - `NODE_ENV` — `development|test|production`, default `production` (logger uses raw `process.env.NODE_ENV` for pretty vs JSON).
   - `LOG_LEVEL` — `fatal|error|warn|info|debug|trace`, default `info`.
-  - `GROQ_API_KEY` — **required**.
-  - `GROQ_VISION_MODEL` — default `qwen/qwen3.6-27b`.
+  - `OPENAI_API_KEY` — **required**.
+  - `OPENAI_VISION_MODEL` — default `gpt-4o-mini`.
   - `AI_TEMPERATURE` — 0–2, default `0.3`.
-  - `AI_MODEL_PROVIDER` — default `groq` (logged in analysis completion).
+  - `AI_MODEL_PROVIDER` — default `openai` (logged in analysis completion).
   - `CLERK_SECRET_KEY` — **required**.
   - `CLERK_PUBLISHABLE_KEY` — **required**.
 

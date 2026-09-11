@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { pinoHttp } from "pino-http";
-import { logger } from "../utils/logger.js";
+import { logger } from "../utils/logger.utils.js";
 
 /**
  * Request logging middleware (pino-http).
@@ -23,5 +23,3 @@ export const requestLogger = pinoHttp<Request, Response>({
     userId: req.auth?.userId,
   }),
 });
-
-

@@ -2,6 +2,7 @@ import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { FileSystemUploadType, uploadAsync } from "expo-file-system/legacy";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -27,7 +28,6 @@ import {
   Caption,
 } from "@/src/components/Typography";
 import {
-  analyzeResponseSchema,
   apiErrorSchema,
   extractJsonBlock,
   extractMarkdown,
@@ -37,15 +37,21 @@ import {
 } from "@/src/lib/nutrition";
 import { useTheme, radius, healthScoreColor, scoreLabel } from "@/src/theme/index";
 import { env } from "@/src/config/env";
+import { prepareMealImage } from "@/src/lib/meal-image";
+import {
+  enqueueAnalysisResponseSchema,
+  pollAnalysisUntilDone,
+  presignUploadResponseSchema,
+} from "@/src/lib/meals-api";
 
 const SERVER_URL = env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
 const ANALYZE_URL = SERVER_URL ? `${SERVER_URL}/api/aifood` : undefined;
-const MAX_IMAGE_BASE64_LENGTH = 8 * 1024 * 1024;
+const PRESIGN_URL = SERVER_URL ? `${SERVER_URL}/api/uploads/presign` : undefined;
 
 const LOADING_MESSAGES = [
   "Uploading your photo…",
-  "Reading your meal…",
-  "Crunching the nutrition numbers…",
+  "AI is analyzing your meal…",
+  "Plating up your results…",
 ];
 
 interface MacroRowProps {
@@ -114,7 +120,8 @@ export default function HomeScreen() {
   const { colors, cardShadow, buttonShadow, isDark, setThemeMode } = useTheme();
   const insets = useSafeAreaInsets();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [base64Image, setBase64Image] = useState<string | null>(null);
+  const [imageDims, setImageDims] = useState<{ width: number; height: number } | null>(null);
+  const attemptRef = useRef(0);
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -131,8 +138,9 @@ export default function HomeScreen() {
 
   const handleReset = () => {
     void Haptics.selectionAsync();
+    attemptRef.current += 1;
     setSelectedImage(null);
-    setBase64Image(null);
+    setImageDims(null);
     resetResults();
   };
 
@@ -206,88 +214,142 @@ export default function HomeScreen() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      quality: 0.25,
+      quality: 1,
       allowsEditing: true,
-      base64: true,
     });
 
     if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
-      setBase64Image(result.assets[0].base64 || null);
+      const asset = result.assets[0];
+      attemptRef.current += 1;
+      setSelectedImage(asset.uri);
+      setImageDims(
+        typeof asset.width === "number" && typeof asset.height === "number"
+          ? { width: asset.width, height: asset.height }
+          : null
+      );
       resetResults();
       void Haptics.selectionAsync();
     }
   };
 
   const uploadToServer = async () => {
-    if (!base64Image) return;
-    if (!ANALYZE_URL) {
+    if (!selectedImage) return;
+    if (!ANALYZE_URL || !PRESIGN_URL) {
       showFailure(
         "Server URL is missing. Set EXPO_PUBLIC_SERVER_URL in your environment and restart Expo."
       );
       return;
     }
 
+    const attempt = attemptRef.current + 1;
+    attemptRef.current = attempt;
+    const isCurrent = () => attemptRef.current === attempt;
+
+    const failAuth = async () => {
+      showFailure("Your session has expired. Please sign in again.");
+      await signOut();
+    };
+
     try {
       setLoading(true);
       setErrorMessage(null);
 
-      if (base64Image.length > MAX_IMAGE_BASE64_LENGTH) {
-        showFailure(
-          "This image is too large to analyze. Please choose a smaller or lower-resolution photo."
-        );
-        return;
-      }
+      // 1. Normalize to a compact JPEG (also converts iOS HEIC).
+      const prepared = await prepareMealImage(
+        selectedImage,
+        imageDims?.width,
+        imageDims?.height
+      );
+      if (!isCurrent()) return;
 
-      const token = await getToken();
+      // 2. Ask the server for a short-lived direct-upload URL.
+      let token = await getToken();
       if (!token) {
-        showFailure("Your session has expired. Please sign in again.");
-        await signOut();
+        await failAuth();
         return;
       }
-
-      const res = await fetch(ANALYZE_URL, {
+      const presignRes = await fetch(PRESIGN_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ image: base64Image }),
+        body: "{}",
       });
-
-      if (res.status === 401) {
-        showFailure("Your session has expired. Please sign in again.");
-        await signOut();
+      if (presignRes.status === 401) {
+        await failAuth();
+        return;
+      }
+      const presignPayload: unknown = await presignRes.json().catch(() => null);
+      if (!presignRes.ok) {
+        const parsedError = apiErrorSchema.safeParse(presignPayload);
+        showFailure(
+          parsedError.success ? parsedError.data.error : "Could not prepare the photo upload."
+        );
+        return;
+      }
+      const presign = presignUploadResponseSchema.safeParse(presignPayload);
+      if (!presign.success) {
+        showFailure("Could not prepare the photo upload. Please try again.");
         return;
       }
 
-      let payload: unknown;
-      try {
-        payload = await res.json();
-      } catch {
+      // 3. Upload the JPEG straight to private object storage.
+      const upload = await uploadAsync(presign.data.uploadUrl, prepared.uri, {
+        httpMethod: "PUT",
+        uploadType: FileSystemUploadType.BINARY_CONTENT,
+        headers: { "Content-Type": "image/jpeg" },
+      });
+      if (upload.status !== 200) {
+        showFailure("Photo upload failed. Please check your connection and try again.");
+        return;
+      }
+      if (!isCurrent()) return;
+
+      // 4. Enqueue the background analysis (202) and poll until it finishes.
+      token = await getToken();
+      if (!token) {
+        await failAuth();
+        return;
+      }
+      const enqueueRes = await fetch(ANALYZE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ imageKey: presign.data.key }),
+      });
+      if (enqueueRes.status === 401) {
+        await failAuth();
+        return;
+      }
+      const enqueuePayload: unknown = await enqueueRes.json().catch(() => null);
+      if (!enqueueRes.ok && enqueueRes.status !== 202) {
+        const parsedError = apiErrorSchema.safeParse(enqueuePayload);
+        showFailure(parsedError.success ? parsedError.data.error : "Error analyzing image");
+        return;
+      }
+      const enqueued = enqueueAnalysisResponseSchema.safeParse(enqueuePayload);
+      if (!enqueued.success) {
+        showFailure("Error analyzing image. Please try again.");
+        return;
+      }
+
+      const final = await pollAnalysisUntilDone(
+        `${ANALYZE_URL}/${enqueued.data.analysisId}`,
+        getToken
+      );
+      if (!isCurrent()) return;
+
+      if (final.outcome === "failed") {
         showFailure(
-          `The server returned an unexpected response (${res.status}). Please try again.`
+          final.payload.error ?? "Analysis failed. Please try with a clearer food image."
         );
         return;
       }
 
-      if (!res.ok) {
-        const parsedError = apiErrorSchema.safeParse(payload);
-        showFailure(
-          parsedError.success ? parsedError.data.error : "Error analyzing image"
-        );
-        return;
-      }
-
-      const parsedResponse = analyzeResponseSchema.safeParse(payload);
-      if (!parsedResponse.success) {
-        showFailure(
-          "The AI returned data in an unexpected format. Please try again with a clearer food image."
-        );
-        return;
-      }
-
-      const message = parsedResponse.data.message;
+      const message = final.payload.message ?? "";
       const rawNutrition = extractJsonBlock(message);
 
       if (hasJsonBlock(message) && rawNutrition === null) {
@@ -311,12 +373,19 @@ export default function HomeScreen() {
       setMarkdown(extractMarkdown(message));
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
+      if (!isCurrent()) return;
+      if (err instanceof Error && err.message === "AUTH_EXPIRED") {
+        await failAuth();
+        return;
+      }
       console.error(err);
       showFailure(
-        `Could not reach the analysis server at ${ANALYZE_URL}. Make sure the backend is running and your phone can reach that IP address.`
+        err instanceof Error && err.message
+          ? err.message
+          : `Could not reach the analysis server at ${ANALYZE_URL}. Make sure the backend is running and your phone can reach that IP address.`
       );
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 
@@ -436,7 +505,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {base64Image ? (
+        {selectedImage ? (
           <PrimaryButton
             label={loading ? "Analyzing..." : "Analyze meal"}
             icon={loading ? undefined : "sparkles-outline"}

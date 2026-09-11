@@ -41,11 +41,11 @@ NutriSnap is a mobile AI meal analyzer built with Expo and React Native. Users s
 - Pino request and application logging
 - CORS and Express rate limiting
 
-## Architecture
+<!-- ## Architecture
 
 <p align="center">
   <img src="./assets/architecture.png" alt="NutriSnap demo"/>
-</p>
+</p> -->
 
 
 1. Clerk protects the mobile app and supplies a bearer token for authenticated requests.

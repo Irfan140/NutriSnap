@@ -2,8 +2,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
-import React, { useCallback } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Linking,
@@ -15,15 +17,109 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import { H1, H3, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
-import { useTheme, radius } from "@/src/theme/index";
+import { fetchMealsStats, type MealStats } from "@/src/lib/meals-api";
+import { healthScoreColor, useTheme, radius } from "@/src/theme/index";
+
+import { env } from "@/src/config/env";
 
 const SUPPORT_EMAIL = "irfanmehmud140@gmail.com";
+const SERVER_URL = env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
+const STATS_URL = SERVER_URL ? `${SERVER_URL}/api/aifood/stats` : undefined;
+const FOCUS_REFETCH_AFTER_MS = 60_000;
+
+function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toLocaleString();
+}
+
+interface StatTileProps {
+  icon: keyof typeof Ionicons.glyphMap;
+  tint: string;
+  label: string;
+  value: string;
+}
+
+function StatTile({ icon, tint, label, value }: StatTileProps) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[styles.statTile, { backgroundColor: colors.background }]}
+      accessibilityRole="text"
+      accessibilityLabel={`${label}: ${value}`}
+    >
+      <View style={[styles.statIcon, { backgroundColor: `${tint}1F` }]}>
+        <Ionicons name={icon} size={20} color={tint} />
+      </View>
+      <BodySemibold style={{ fontSize: 20, marginTop: 8 }}>{value}</BodySemibold>
+      <Caption dim style={{ marginTop: 2 }}>
+        {label}
+      </Caption>
+    </View>
+  );
+}
 
 const Profile = () => {
-  const { signOut } = useAuth();
+  const { getToken, signOut } = useAuth();
   const { user } = useUser();
   const { colors, cardShadow } = useTheme();
   const insets = useSafeAreaInsets();
+  const [stats, setStats] = useState<MealStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const mountedRef = useRef(true);
+  const lastFetchedAtRef = useRef(0);
+
+  // Same stability guard as history.tsx: Clerk callbacks change identity
+  // across renders, so read them through a ref inside the loader.
+  const authRef = useRef({ getToken, signOut });
+  authRef.current = { getToken, signOut };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const loadStats = useCallback(async (silent: boolean) => {
+    if (!STATS_URL || !mountedRef.current) {
+      if (mountedRef.current) {
+        setStatsLoading(false);
+      }
+      return;
+    }
+    if (!silent) {
+      setStatsLoading(true);
+    }
+    try {
+      const result = await fetchMealsStats(STATS_URL, authRef.current.getToken);
+      if (!mountedRef.current) return;
+      setStats(result);
+      lastFetchedAtRef.current = Date.now();
+    } catch (err) {
+      if (!mountedRef.current) return;
+      if (err instanceof Error && err.message === "AUTH_EXPIRED") {
+        await authRef.current.signOut();
+        return;
+      }
+    } finally {
+      if (mountedRef.current) setStatsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadStats(false);
+  }, [loadStats]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Date.now() - lastFetchedAtRef.current > FOCUS_REFETCH_AFTER_MS) {
+        void loadStats(true);
+      }
+    }, [loadStats]),
+  );
 
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
 
@@ -136,6 +232,63 @@ const Profile = () => {
               </Caption>
             </View>
           ) : null}
+        </View>
+
+        {/* Stats */}
+        <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
+          <H3 style={styles.sectionTitle}>Your stats</H3>
+          {statsLoading && !stats ? (
+            <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
+          ) : stats ? (
+            <>
+              <View style={styles.statsGrid}>
+                <StatTile
+                  icon="nutrition-outline"
+                  tint={colors.primary}
+                  label="Meals analyzed"
+                  value={String(stats.total)}
+                />
+                <StatTile
+                  icon="speedometer-outline"
+                  tint={
+                    stats.averageHealthScore !== null
+                      ? healthScoreColor(stats.averageHealthScore, colors)
+                      : colors.textSecondary
+                  }
+                  label="Avg. score"
+                  value={stats.averageHealthScore !== null ? String(stats.averageHealthScore) : "—"}
+                />
+                <StatTile
+                  icon="flame-outline"
+                  tint="#F97316"
+                  label="Day streak"
+                  value={`${stats.currentStreak} ${stats.currentStreak === 1 ? "day" : "days"}`}
+                />
+                <StatTile
+                  icon="trophy-outline"
+                  tint="#EAB308"
+                  label="Best streak"
+                  value={`${stats.bestStreak} ${stats.bestStreak === 1 ? "day" : "days"}`}
+                />
+              </View>
+              <Caption dim align="center" style={{ marginTop: 4 }}>
+                {stats.lastAnalyzedAt
+                  ? `Last analyzed ${formatDateTime(stats.lastAnalyzedAt)}`
+                  : stats.total === 0
+                    ? "Analyze your first meal from Home to start your streak."
+                    : "Finish an analysis to start your streak."}
+              </Caption>
+            </>
+          ) : (
+            <TouchableOpacity
+              onPress={() => void loadStats(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading stats"
+              hitSlop={4}
+            >
+              <Caption dim>Couldn&apos;t load stats — tap to retry</Caption>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Account Info */}
@@ -253,6 +406,26 @@ const styles = StyleSheet.create({
   sectionTitle: {
     alignSelf: "flex-start",
     marginBottom: 16,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    width: "100%",
+  },
+  statTile: {
+    width: "48%",
+    borderRadius: radius.md,
+    padding: 14,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  statIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
   },
   infoRow: {
     flexDirection: "row",

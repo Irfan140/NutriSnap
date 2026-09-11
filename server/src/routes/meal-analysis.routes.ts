@@ -20,6 +20,13 @@ router.post(
 // Newest-first meal history page. Declared before "/aifood/:id" for clarity
 // (exact paths never collide with Express params, but order aids reading).
 router.get("/aifood", requireAuth, listMealsRateLimiter, asyncHandler(aiController.listAnalyses));
+// Must precede "/aifood/:id" — otherwise "stats" would match the :id param.
+router.get(
+  "/aifood/stats",
+  requireAuth,
+  listMealsRateLimiter,
+  asyncHandler(aiController.getMealsStats),
+);
 router.get("/aifood/:id", requireAuth, asyncHandler(aiController.getAnalysis));
 
 export default router;

@@ -46,6 +46,16 @@ export type MealHistoryPage = {
   readonly total: number;
 };
 
+export type UserMealStats = {
+  readonly total: number;
+  readonly succeeded: number;
+  readonly failed: number;
+  readonly averageHealthScore: number | null;
+  readonly currentStreak: number;
+  readonly bestStreak: number;
+  readonly lastAnalyzedAt: Date | null;
+};
+
 export type MealAnalysisOutcome =
   | { readonly status: "success"; readonly analysis: FoodAnalysis; readonly message: string }
   | { readonly status: "invalid-image" | "not-food" | "invalid-ai-response" | "provider-failure" };
@@ -67,5 +77,6 @@ export type MealAnalysisDeps = {
     page: number,
     limit: number,
   ) => Promise<{ items: MealHistoryItem[]; total: number }>;
+  readonly getUserMealStats: (userId: string) => Promise<UserMealStats>;
   readonly enqueueMealAnalysis: (data: MealAnalysisJobData) => Promise<string>;
 };

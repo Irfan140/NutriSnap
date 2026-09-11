@@ -13,6 +13,7 @@ import {
 import {
   createQueuedAnalysis,
   findUserAnalysis,
+  getUserMealStats,
   listUserAnalyses,
 } from "../repositories/meal-analyses.repositories.js";
 import { enqueueMealAnalysis } from "../queues/meal-analysis.queues.js";
@@ -23,7 +24,11 @@ import {
 } from "../schemas/meal.schemas.js";
 import { ensureUser } from "../services/clerk-sync.services.js";
 import { logger } from "../utils/logger.utils.js";
-import type { AnalyzeMealResponse, MealAnalysisDeps } from "../types/meal-analysis.types.js";
+import type {
+  AnalyzeMealResponse,
+  MealAnalysisDeps,
+  UserMealStats,
+} from "../types/meal-analysis.types.js";
 
 type ErrorResponse = {
   readonly error: string;
@@ -61,11 +66,16 @@ type MealHistoryPageBody =
     }
   | ErrorResponse;
 
+type MealsStatsResponseBody =
+  | (Omit<UserMealStats, "lastAnalyzedAt"> & { readonly lastAnalyzedAt: string | null })
+  | ErrorResponse;
+
 const defaultDeps: MealAnalysisDeps = {
   ensureUser,
   createQueuedAnalysis,
   findUserAnalysis,
   listUserAnalyses,
+  getUserMealStats,
   enqueueMealAnalysis,
 };
 
@@ -256,5 +266,25 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
     res.status(200).json({ items: results, page, limit, total });
   };
 
-  return { requestUpload, enqueueAnalysis, getAnalysis, listAnalyses };
+  /** Profile stats for the caller (totals, average score, streaks). */
+  const getMealsStats: RequestHandler<ParamsDictionary, MealsStatsResponseBody> = async (
+    req,
+    res,
+  ): Promise<void> => {
+    const clerkId = req.auth?.userId;
+    if (!clerkId) {
+      const { status, body } = unauthorized();
+      res.status(status).json(body);
+      return;
+    }
+
+    const user = await deps.ensureUser(clerkId);
+    const stats = await deps.getUserMealStats(user.id);
+    res.status(200).json({
+      ...stats,
+      lastAnalyzedAt: stats.lastAnalyzedAt?.toISOString() ?? null,
+    });
+  };
+
+  return { requestUpload, enqueueAnalysis, getAnalysis, listAnalyses, getMealsStats };
 }

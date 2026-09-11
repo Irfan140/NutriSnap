@@ -162,3 +162,59 @@ export async function fetchMealsPage(
   }
   return parsed.data;
 }
+
+export const mealStatsSchema = z.object({
+  total: z.number().int().min(0),
+  succeeded: z.number().int().min(0),
+  failed: z.number().int().min(0),
+  averageHealthScore: z.number().min(0).max(100).nullable(),
+  currentStreak: z.number().int().min(0),
+  bestStreak: z.number().int().min(0),
+  lastAnalyzedAt: z.string().nullable(),
+});
+
+export type MealStats = z.infer<typeof mealStatsSchema>;
+
+/**
+ * Fetches the caller's aggregate meal stats for the Profile screen.
+ * Throws `AUTH_EXPIRED` (caller signs out) or a user-facing Error.
+ */
+export async function fetchMealsStats(
+  statsUrl: string,
+  getToken: () => Promise<string | null>,
+): Promise<MealStats> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("AUTH_EXPIRED");
+  }
+
+  const res = await fetch(statsUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) {
+    throw new Error("AUTH_EXPIRED");
+  }
+
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch {
+    throw new Error(`Unexpected server response (${res.status}).`);
+  }
+
+  if (!res.ok) {
+    const err =
+      typeof payload === "object" && payload !== null && "error" in payload
+        ? (payload as { error?: unknown }).error
+        : undefined;
+    throw new Error(
+      typeof err === "string" && err !== "" ? err : `Stats request failed (${res.status}).`,
+    );
+  }
+
+  const parsed = mealStatsSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new Error("Unexpected server response.");
+  }
+  return parsed.data;
+}

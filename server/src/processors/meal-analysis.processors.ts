@@ -7,9 +7,10 @@ import {
   markAnalysisStatus,
   markAnalysisSucceeded,
 } from "../repositories/meal-analyses.repositories.js";
-import type { MealAnalysisJobData } from "../types/meal-analysis.types.js";
 import { aiService } from "../services/meal-analysis.services.js";
+import type { MealAnalysisJobData } from "../types/meal-analysis.types.js";
 import { logger } from "../utils/logger.utils.js";
+import { Prisma } from "../../generated/prisma/client.js";
 
 function toUserErrorMessage(status: "invalid-image" | "not-food" | "invalid-ai-response"): string {
   if (status === "not-food") {
@@ -19,6 +20,14 @@ function toUserErrorMessage(status: "invalid-image" | "not-food" | "invalid-ai-r
     return "AI returned invalid nutrition data. Please try again with a clearer food image.";
   }
   return "The uploaded image could not be read. Please upload again.";
+}
+
+/**
+ * True when a Prisma write failed because the row no longer exists —
+ * the expected race when a user deletes an analysis mid-flight.
+ */
+function isMissingRowError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";
 }
 
 /**
@@ -34,7 +43,9 @@ export async function processMealAnalysis(job: Job<MealAnalysisJobData>): Promis
 
   const row = await findAnalysisById(analysisId);
   if (!row) {
-    throw new UnrecoverableError(`MealAnalysis not found: ${analysisId}`);
+    // Already deleted by the user (or never existed): nothing to do.
+    logger.info({ analysisId }, "Skipping meal analysis job for missing row");
+    return;
   }
   if (row.status === "SUCCEEDED") {
     return;
@@ -76,6 +87,11 @@ export async function processMealAnalysis(job: Job<MealAnalysisJobData>): Promis
 
     await markAnalysisFailed(analysisId, toUserErrorMessage(outcome.status));
   } catch (error) {
+    if (isMissingRowError(error)) {
+      // Deleted mid-flight: nothing left to persist, job is done.
+      logger.info({ analysisId }, "Meal analysis row deleted during processing; skipping persist");
+      return;
+    }
     if (error instanceof UnrecoverableError) {
       try {
         await markAnalysisFailed(analysisId, error.message);

@@ -23,8 +23,6 @@ import { healthScoreColor, scoreLabel, useTheme } from "@/src/theme/index";
 
 const SERVER_URL = env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
 const LIST_URL = SERVER_URL ? `${SERVER_URL}/api/aifood` : undefined;
-// Presigned thumbnails expire, so refetch a stale list when returning here.
-const FOCUS_REFETCH_AFTER_MS = 60_000;
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -111,7 +109,6 @@ export default function HistoryScreen() {
   const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const mountedRef = useRef(true);
-  const lastFetchedAtRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -158,7 +155,6 @@ export default function HistoryScreen() {
         setItems((prev) => (append ? [...prev, ...result.items] : result.items));
         setTotal(result.total);
         setPage(result.page);
-        lastFetchedAtRef.current = Date.now();
         setErrorMessage(null);
       } catch (err) {
         if (!mountedRef.current) return;
@@ -188,16 +184,13 @@ export default function HistoryScreen() {
     void loadPage(1);
   }, [loadPage]);
 
+  // Always refetch on focus: cheap (one page), keeps presigned thumbnails
+  // fresh, and reflects deletions made on the detail screen. Overlap with
+  // mount/paging loads is blocked by inflightRef inside loadPage.
   useFocusEffect(
     useCallback(() => {
-      if (
-        items.length > 0 &&
-        !loading &&
-        Date.now() - lastFetchedAtRef.current > FOCUS_REFETCH_AFTER_MS
-      ) {
-        void loadPage(1, { silent: true });
-      }
-    }, [items.length, loading, loadPage]),
+      void loadPage(1, { silent: true });
+    }, [loadPage]),
   );
 
   const onRefresh = useCallback(() => {

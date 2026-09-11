@@ -42,6 +42,11 @@ export async function removeClerkUser(clerkId: string): Promise<void> {
   await deleteUserByClerkId(clerkId);
 }
 
+/** Deletes the Clerk-side user (account erasure runs data-first, this last). */
+export async function deleteClerkUser(clerkId: string): Promise<void> {
+  await clerkClient.users.deleteUser(clerkId);
+}
+
 /**
  * Backstop for missed/failed webhook deliveries: ensures a local user row
  * exists for an authenticated Clerk id, fetching profile data from the

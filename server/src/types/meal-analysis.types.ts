@@ -17,6 +17,12 @@ export type MealAnalysisJobData = {
   readonly r2Key: string;
 };
 
+/** Payload for maintenance (sweep) jobs, which carry no data. */
+export type MaintenanceJobData = Record<string, never>;
+
+/** Any job that can sit on the meal-analysis queue. */
+export type MealQueueJobData = MealAnalysisJobData | MaintenanceJobData;
+
 export type SucceededAnalysisInput = {
   readonly nutrition: Prisma.InputJsonValue;
   readonly healthScore: number;
@@ -78,5 +84,8 @@ export type MealAnalysisDeps = {
     limit: number,
   ) => Promise<{ items: MealHistoryItem[]; total: number }>;
   readonly getUserMealStats: (userId: string) => Promise<UserMealStats>;
+  readonly removeAnalysisJob: (analysisId: string) => Promise<boolean>;
+  readonly deleteAnalysisById: (id: string) => Promise<void>;
+  readonly deleteObject: (key: string) => Promise<void>;
   readonly enqueueMealAnalysis: (data: MealAnalysisJobData) => Promise<string>;
 };

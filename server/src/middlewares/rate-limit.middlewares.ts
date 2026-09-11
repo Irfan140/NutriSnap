@@ -53,3 +53,19 @@ export const listMealsRateLimiter = rateLimit({
     });
   },
 });
+
+/**
+ * Strict guard for irreversible account erasure.
+ */
+export const accountDeleteRateLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: (req) => req.auth?.userId ?? (req.ip ? ipKeyGenerator(req.ip) : "unknown"),
+  handler: (_req, res) => {
+    res.status(429).json({
+      error: "Too many requests. Please try again in a while.",
+    });
+  },
+});

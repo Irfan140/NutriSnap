@@ -5,6 +5,7 @@ import {
   buildMealImageKey,
   createDownloadUrl,
   createUploadUrl,
+  deleteObject,
   headObject,
   isR2Configured,
   isUserImageKey,
@@ -12,11 +13,12 @@ import {
 } from "../lib/r2.lib.js";
 import {
   createQueuedAnalysis,
+  deleteAnalysisById,
   findUserAnalysis,
   getUserMealStats,
   listUserAnalyses,
 } from "../repositories/meal-analyses.repositories.js";
-import { enqueueMealAnalysis } from "../queues/meal-analysis.queues.js";
+import { enqueueMealAnalysis, removeAnalysisJob } from "../queues/meal-analysis.queues.js";
 import {
   enqueueMealAnalysisSchema,
   listMealsQuerySchema,
@@ -76,6 +78,9 @@ const defaultDeps: MealAnalysisDeps = {
   findUserAnalysis,
   listUserAnalyses,
   getUserMealStats,
+  removeAnalysisJob,
+  deleteAnalysisById,
+  deleteObject,
   enqueueMealAnalysis,
 };
 
@@ -286,5 +291,51 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
     });
   };
 
-  return { requestUpload, enqueueAnalysis, getAnalysis, listAnalyses, getMealsStats };
+  /** Deletes one analysis: drops the queued job, row, and private image. */
+  const deleteAnalysis: RequestHandler<ParamsDictionary, ErrorResponse> = async (
+    req,
+    res,
+  ): Promise<void> => {
+    const parsedParams = mealAnalysisParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      res.status(400).json({ error: parsedParams.error.issues[0]?.message ?? "Invalid request" });
+      return;
+    }
+
+    const clerkId = req.auth?.userId;
+    if (!clerkId) {
+      const { status, body } = unauthorized();
+      res.status(status).json(body);
+      return;
+    }
+
+    const user = await deps.ensureUser(clerkId);
+    const row = await deps.findUserAnalysis(parsedParams.data.id, user.id);
+    if (!row) {
+      res.status(404).json({ error: "Analysis not found." });
+      return;
+    }
+
+    // Best-effort: an actively processing job notices the missing row and
+    // finishes as a no-op (see the processor's missing-row guards).
+    await deps.removeAnalysisJob(row.id);
+    await deps.deleteAnalysisById(row.id);
+    try {
+      await deps.deleteObject(row.r2Key);
+    } catch (error) {
+      // The orphan sweeper backstops: log and still report success.
+      logger.warn({ err: error, analysisId: row.id }, "Failed to delete R2 object with analysis");
+    }
+
+    res.status(204).end();
+  };
+
+  return {
+    requestUpload,
+    enqueueAnalysis,
+    getAnalysis,
+    listAnalyses,
+    getMealsStats,
+    deleteAnalysis,
+  };
 }

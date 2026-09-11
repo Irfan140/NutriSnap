@@ -182,3 +182,46 @@ export async function markAnalysisFailed(id: string, error: string): Promise<voi
     data: { status: "FAILED", error, completedAt: new Date() },
   });
 }
+
+export async function deleteAnalysisById(id: string): Promise<void> {
+  await prisma.mealAnalysis.delete({ where: { id } });
+}
+
+/** All analysis ids, statuses and keys of a user (deletion + job cleanup). */
+export async function findAllUserAnalysisKeys(
+  userId: string,
+): Promise<readonly { id: string; status: MealAnalysisStatus; r2Key: string }[]> {
+  return prisma.mealAnalysis.findMany({
+    where: { userId },
+    select: { id: true, status: true, r2Key: true },
+  });
+}
+
+/**
+ * Fails rows stuck before a terminal state (worker crash / lost jobs).
+ * Returns the number of rows reaped.
+ */
+export async function markStaleAnalysesFailed(before: Date): Promise<number> {
+  const result = await prisma.mealAnalysis.updateMany({
+    where: {
+      status: { in: ["QUEUED", "PROCESSING"] },
+      updatedAt: { lt: before },
+    },
+    data: {
+      status: "FAILED",
+      error: "Analysis timed out before completing. Please try again.",
+      completedAt: new Date(),
+    },
+  });
+  return result.count;
+}
+
+/** R2 keys still referenced by rows (orphan sweep allowlist). */
+export async function findReferencedR2Keys(r2Keys: readonly string[]): Promise<Set<string>> {
+  if (r2Keys.length === 0) return new Set<string>();
+  const rows = await prisma.mealAnalysis.findMany({
+    where: { r2Key: { in: [...r2Keys] } },
+    select: { r2Key: true },
+  });
+  return new Set(rows.map((row) => row.r2Key));
+}

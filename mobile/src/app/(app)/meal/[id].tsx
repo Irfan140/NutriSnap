@@ -1,10 +1,11 @@
 import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -14,7 +15,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import MealResultCard from "@/src/components/MealResultCard";
 import { Body, BodySemibold, H3 } from "@/src/components/Typography";
 import { env } from "@/src/config/env";
-import { analysisStatusResponseSchema } from "@/src/lib/meals-api";
+import { analysisStatusResponseSchema, deleteMealAnalysis } from "@/src/lib/meals-api";
 import {
   apiErrorSchema,
   parseResultMessage,
@@ -37,6 +38,7 @@ export default function MealDetailScreen() {
   const [markdown, setMarkdown] = useState("");
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
   const [imgHidden, setImgHidden] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -122,6 +124,41 @@ export default function MealDetailScreen() {
     void load();
   }, [load]);
 
+  const confirmDelete = useCallback(() => {
+    if (typeof id !== "string" || id === "" || !ANALYZE_URL) return;
+    Alert.alert(
+      "Delete this analysis?",
+      "The photo and its nutrition report will be permanently removed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => void (async () => {
+            if (mountedRef.current) setDeleting(true);
+            try {
+              const { getToken } = authRef.current;
+              await deleteMealAnalysis(ANALYZE_URL, id, getToken);
+            } catch (err) {
+              if (!mountedRef.current) return;
+              setDeleting(false);
+              if (err instanceof Error && err.message === "AUTH_EXPIRED") {
+                await authRef.current.signOut();
+                return;
+              }
+              Alert.alert(
+                "Delete failed",
+                err instanceof Error ? err.message : "Could not delete this analysis.",
+              );
+              return;
+            }
+            router.back();
+          })(),
+        },
+      ],
+    );
+  }, [id]);
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -155,6 +192,21 @@ export default function MealDetailScreen() {
             >
               <BodySemibold style={{ color: colors.textInverse }}>Try Again</BodySemibold>
             </TouchableOpacity>
+            {status === "FAILED" ? (
+              <TouchableOpacity
+                style={[styles.deleteButton, { borderColor: colors.danger }]}
+                onPress={confirmDelete}
+                disabled={deleting}
+                accessibilityRole="button"
+                accessibilityLabel="Delete this analysis"
+                accessibilityHint="Permanently removes the photo and report"
+                hitSlop={4}
+              >
+                <BodySemibold style={{ color: colors.danger }}>
+                  {deleting ? "Deleting…" : "Delete analysis"}
+                </BodySemibold>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : (
           <>
@@ -169,6 +221,25 @@ export default function MealDetailScreen() {
               />
             ) : null}
             <MealResultCard nutrition={nutrition} markdown={markdown} />
+            <TouchableOpacity
+              style={[styles.deleteButton, { borderColor: colors.danger }]}
+              onPress={confirmDelete}
+              disabled={deleting}
+              accessibilityRole="button"
+              accessibilityLabel="Delete this analysis"
+              accessibilityHint="Permanently removes the photo and report"
+              hitSlop={4}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={18}
+                color={colors.danger}
+                style={{ marginRight: 8 }}
+              />
+              <BodySemibold style={{ color: colors.danger }}>
+                {deleting ? "Deleting…" : "Delete analysis"}
+              </BodySemibold>
+            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -191,6 +262,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 24,
     paddingVertical: 12,
+  },
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    marginTop: 16,
   },
   photo: {
     width: "100%",

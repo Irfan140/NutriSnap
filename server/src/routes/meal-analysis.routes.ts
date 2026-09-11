@@ -28,5 +28,11 @@ router.get(
   asyncHandler(aiController.getMealsStats),
 );
 router.get("/aifood/:id", requireAuth, asyncHandler(aiController.getAnalysis));
+router.delete(
+  "/aifood/:id",
+  requireAuth,
+  analyzeMealRateLimiter,
+  asyncHandler(aiController.deleteAnalysis),
+);
 
 export default router;

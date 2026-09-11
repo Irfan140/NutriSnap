@@ -218,3 +218,78 @@ export async function fetchMealsStats(
   }
   return parsed.data;
 }
+
+function errorMessageOf(payload: unknown, fallback: string): string {
+  const err =
+    typeof payload === "object" && payload !== null && "error" in payload
+      ? (payload as { error?: unknown }).error
+      : undefined;
+  return typeof err === "string" && err !== "" ? err : fallback;
+}
+
+/**
+ * Deletes one analysis (queued job, row, and private image).
+ * Resolves on 204; throws `AUTH_EXPIRED` or a user-facing Error.
+ */
+export async function deleteMealAnalysis(
+  baseUrl: string,
+  id: string,
+  getToken: () => Promise<string | null>,
+): Promise<void> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("AUTH_EXPIRED");
+  }
+
+  const res = await fetch(`${baseUrl}/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) {
+    throw new Error("AUTH_EXPIRED");
+  }
+  if (res.status === 404) {
+    throw new Error("Analysis not found. It may already be deleted.");
+  }
+  if (!res.ok) {
+    let payload: unknown = null;
+    try {
+      payload = await res.json();
+    } catch {
+      // Fall through to the generic message below.
+    }
+    throw new Error(errorMessageOf(payload, `Delete failed (${res.status}).`));
+  }
+}
+
+/**
+ * Erases the whole account (meals, photos, profile). Resolves on 204;
+ * throws `AUTH_EXPIRED` or a user-facing Error (including the server's
+ * needs-support message when data is gone but Clerk removal failed).
+ */
+export async function deleteAccount(
+  apiBaseUrl: string,
+  getToken: () => Promise<string | null>,
+): Promise<void> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("AUTH_EXPIRED");
+  }
+
+  const res = await fetch(`${apiBaseUrl}/account`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) {
+    throw new Error("AUTH_EXPIRED");
+  }
+  if (!res.ok) {
+    let payload: unknown = null;
+    try {
+      payload = await res.json();
+    } catch {
+      // Fall through to the generic message below.
+    }
+    throw new Error(errorMessageOf(payload, `Account deletion failed (${res.status}).`));
+  }
+}

@@ -17,7 +17,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import { H1, H3, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
-import { fetchMealsStats, type MealStats } from "@/src/lib/meals-api";
+import { deleteAccount, fetchMealsStats, type MealStats } from "@/src/lib/meals-api";
 import { healthScoreColor, useTheme, radius } from "@/src/theme/index";
 
 import { env } from "@/src/config/env";
@@ -25,7 +25,7 @@ import { env } from "@/src/config/env";
 const SUPPORT_EMAIL = "irfanmehmud140@gmail.com";
 const SERVER_URL = env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
 const STATS_URL = SERVER_URL ? `${SERVER_URL}/api/aifood/stats` : undefined;
-const FOCUS_REFETCH_AFTER_MS = 60_000;
+const ACCOUNT_URL = SERVER_URL ? `${SERVER_URL}/api` : undefined;
 
 function formatDateTime(iso: string): string {
   const date = new Date(iso);
@@ -69,7 +69,6 @@ const Profile = () => {
   const [stats, setStats] = useState<MealStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const mountedRef = useRef(true);
-  const lastFetchedAtRef = useRef(0);
 
   // Same stability guard as history.tsx: Clerk callbacks change identity
   // across renders, so read them through a ref inside the loader.
@@ -97,7 +96,6 @@ const Profile = () => {
       const result = await fetchMealsStats(STATS_URL, authRef.current.getToken);
       if (!mountedRef.current) return;
       setStats(result);
-      lastFetchedAtRef.current = Date.now();
     } catch (err) {
       if (!mountedRef.current) return;
       if (err instanceof Error && err.message === "AUTH_EXPIRED") {
@@ -113,11 +111,10 @@ const Profile = () => {
     void loadStats(false);
   }, [loadStats]);
 
+  // Always refetch on focus so stats reflect analyses finished elsewhere.
   useFocusEffect(
     useCallback(() => {
-      if (Date.now() - lastFetchedAtRef.current > FOCUS_REFETCH_AFTER_MS) {
-        void loadStats(true);
-      }
+      void loadStats(true);
     }, [loadStats]),
   );
 
@@ -128,6 +125,53 @@ const Profile = () => {
       { text: "Cancel", style: "cancel" },
       { text: "Sign Out", style: "destructive", onPress: () => signOut() },
     ]);
+  };
+
+  const confirmDeleteAccount = useCallback(async () => {
+    if (!ACCOUNT_URL) {
+      Alert.alert("Error", "Server URL is missing. Cannot delete account right now.");
+      return;
+    }
+    try {
+      await deleteAccount(ACCOUNT_URL, authRef.current.getToken);
+    } catch (err) {
+      if (!mountedRef.current) return;
+      if (err instanceof Error && err.message === "AUTH_EXPIRED") {
+        // Session already invalid — fall through to local sign-out.
+      } else {
+        Alert.alert(
+          "Delete failed",
+          err instanceof Error ? err.message : "Could not delete your account.",
+        );
+        return;
+      }
+    }
+    await signOut();
+  }, [signOut]);
+
+  const handleDeleteAccount = () => {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      "Delete account?",
+      "This permanently deletes your meals, photos, stats and profile. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert("Last chance", "Delete everything and sign out?", [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Delete everything",
+                style: "destructive",
+                onPress: () => void confirmDeleteAccount(),
+              },
+            ]);
+          },
+        },
+      ],
+    );
   };
 
   const openSupportEmail = useCallback(async (subject: string, body: string) => {
@@ -357,6 +401,28 @@ const Profile = () => {
               <Caption dim>Found an issue? Let us know</Caption>
             </View>
             <Ionicons name="open-outline" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Danger zone */}
+        <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
+          <H3 style={styles.sectionTitle}>Danger zone</H3>
+          <TouchableOpacity
+            style={[styles.menuRow, { borderBottomWidth: 0 }]}
+            activeOpacity={0.7}
+            onPress={handleDeleteAccount}
+            accessibilityRole="button"
+            accessibilityLabel="Delete account"
+            accessibilityHint="Permanently removes all your data"
+            hitSlop={4}
+          >
+            <View style={[styles.menuIcon, { backgroundColor: colors.dangerSoft }]}>
+              <Ionicons name="trash-outline" size={20} color={colors.danger} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <BodySemibold style={{ color: colors.danger }}>Delete account</BodySemibold>
+              <Caption dim>Permanently remove all your data</Caption>
+            </View>
           </TouchableOpacity>
         </View>
 

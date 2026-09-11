@@ -3,7 +3,7 @@ const DATA_URI_PATTERN = /^data:image\/([a-zA-Z0-9.+-]+);base64,/;
 
 // Maximum accepted base64 image size.
 // 200 KB keeps token usage low (~800-1,500 input tokens) to stay within
-// Groq free-tier TPM limits (8,000 TPM for qwen/qwen3.6-27b).
+// the vision model's per-minute token limits.
 export const MAX_IMAGE_BASE64_LENGTH = 200 * 1024;
 
 export function stripImageDataUri(image: string): string {

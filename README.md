@@ -35,8 +35,8 @@ NutriSnap is a mobile AI meal analyzer built with Expo and React Native. Users s
 - Bun runtime
 - Express
 - Clerk Express authentication
-- LangChain with `ChatGroq`
-- Groq vision model
+- LangChain with `ChatOpenAI`
+- OpenAI vision model
 - Zod nutrition and request schemas
 - Pino request and application logging
 - CORS and Express rate limiting
@@ -51,6 +51,6 @@ NutriSnap is a mobile AI meal analyzer built with Expo and React Native. Users s
 1. Clerk protects the mobile app and supplies a bearer token for authenticated requests.
 2. The user chooses a meal image from the gallery. The mobile app sends its base64 content to `POST /api/aifood`.
 3. Express validates the Clerk session, request body, image format, image size, and per-user request limit.
-4. The AI service sends the image to the Groq vision model through LangChain and requests a JSON nutrition analysis.
+4. The AI service sends the image to the OpenAI vision model through LangChain and requests a JSON nutrition analysis.
 5. The server validates the model output with Zod, rejects non-food or invalid results, and formats successful results as a JSON code block plus Markdown guidance.
 6. The mobile app parses the `{ message }` response and renders the health score, nutrition rows, vitamins, advice, alternatives, and summary. The server also exposes `GET /health` for health checks.

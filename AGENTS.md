@@ -122,7 +122,7 @@ bun src/index.ts           # npm run start (prod)
 # If Bun task runner not available, use npx bun or node with tsx equivalent
 ```
 
-Mobile requires env before start (see §10). Server reads `.env.local` via `dotenv/config` in `server/src/config/env.ts:1`.
+Mobile requires env before start (see §10). Server reads `.env.development` (or `.env.production` when `NODE_ENV=production`) via `dotenv` in `server/src/config/env.ts:1`.
 
 ### Build / Deploy (EAS)
 
@@ -205,7 +205,7 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 
 ## 10. Environment Variables and Secrets
 
-- **Files** — `mobile/.env.example` and `server/.env.example` are templates (commit). Actual values live in `mobile/.env.local` and `server/.env.local` (+ `server/.env.production`) — these are **ignored** (`mobile/.gitignore:34-45`, `server/.gitignore:18-24`) and MUST NOT be committed. Server loads via `dotenv/config` (`server/src/config/env.ts:1`); mobile vars are injected at build via Expo (`EXPO_PUBLIC_*`).
+- **Files** — `mobile/.env.example` and `server/.env.example` are templates (commit). Actual values live in `mobile/.env.local` and `server/.env.development` (+ `server/.env.production`) — these are **ignored** (`mobile/.gitignore:34-45`, `server/.gitignore:18-24`) and MUST NOT be committed. Server loads via `dotenv` (`server/src/config/env.ts:1`); mobile vars are injected at build via Expo (`EXPO_PUBLIC_*`).
 
 - **Mobile (`mobile/src/config/env.ts:3-13`)**
   - `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` — **required**, non-empty string.

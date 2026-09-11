@@ -18,9 +18,7 @@ export function parseNutritionAnalysis(value: unknown): NutritionAnalysis | null
  * Handles markdown code fences, stray whitespace, and common LLM quirks.
  */
 export function parseNutritionText(text: string): NutritionAnalysis | null {
-  // Strip Qwen's "thinking" preamble (chain-of-thought before JSON).
-  // Pattern: "\nthinking\n...reasoning...\n\n{...}" or "\nthinking\n...reasoning...\n{...}"
-  const cleaned = stripThinkingPreamble(text).trim();
+  const cleaned = text.trim();
 
   // Strategy 1: raw JSON from the cleaned text
   let json = tryExtractJson(cleaned);
@@ -44,31 +42,6 @@ export function parseNutritionText(text: string): NutritionAnalysis | null {
   }
 
   return null;
-}
-
-/**
- * Qwen's vision models return a "thinking" block before actual output:
- *   "\nthinking\n...multi-line reasoning...\n\n{...json...}"
- * This strips everything up to and including the thinking block,
- * keeping only the JSON portion after it.
- */
-function stripThinkingPreamble(text: string): string {
-  const thinkingStart = text.indexOf("\n thinking\n");
-  if (thinkingStart === -1) return text;
-
-  // The thinking block starts at the newline before "thinking"
-  // Find the first { after the thinking keyword
-  const thinkingKeywordEnd = thinkingStart + "\n thinking\n".length;
-  const afterThinking = text.slice(thinkingKeywordEnd);
-
-  // Find the first { that appears after the thinking block
-  const jsonStart = afterThinking.indexOf("{");
-  if (jsonStart === -1) {
-    // No JSON found — fall back to trying the whole text
-    return text;
-  }
-
-  return afterThinking.slice(jsonStart);
 }
 
 function tryExtractJson(text: string): unknown | null {

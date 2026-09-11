@@ -49,8 +49,8 @@ export function createAiService(): AiService {
 
   /**
    * Invokes the model with exponential backoff on rate-limit errors.
-   * Groq free tier has 8,000 TPM / 30 RPM for qwen/qwen3.6-27b,
-   * and a single vision request can consume 3,000-6,000 input tokens.
+   * Retries transient 429/5xx failures from the OpenAI API;
+   * a single vision request can consume several thousand input tokens.
    */
   async function invokeWithRetry(imageDataUri: string): Promise<string> {
     let lastError: unknown;
@@ -84,7 +84,7 @@ export function createAiService(): AiService {
           const delay = retryAfter > 0 ? retryAfter * 1_000 : BASE_DELAY_MS * 2 ** attempt;
           logger.warn(
             { attempt: attempt + 1, delayMs: delay, err: String(error) },
-            "Groq rate-limited, retrying…",
+            "OpenAI rate-limited, retrying…",
           );
           await sleep(delay);
           continue;
@@ -94,7 +94,7 @@ export function createAiService(): AiService {
           const delay = BASE_DELAY_MS * 2 ** attempt;
           logger.warn(
             { attempt: attempt + 1, delayMs: delay, err: String(error) },
-            "Groq request failed, retrying…",
+            "OpenAI request failed, retrying…",
           );
           await sleep(delay);
           continue;

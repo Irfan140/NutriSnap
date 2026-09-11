@@ -1,16 +1,6 @@
-import type { MealAnalysis, MealAnalysisStatus, Prisma } from "../../generated/prisma/client.js";
+import type { MealAnalysis, MealAnalysisStatus } from "../../generated/prisma/client.js";
 import { prisma } from "../lib/prisma.lib.js";
-
-export type SucceededAnalysisInput = {
-  readonly nutrition: Prisma.InputJsonValue;
-  readonly healthScore: number;
-  readonly healthAdvice: readonly string[];
-  readonly alternativeSuggestions: readonly string[];
-  readonly summary: string;
-  readonly message: string;
-  readonly model: string;
-  readonly durationMs: number;
-};
+import type { SucceededAnalysisInput } from "../types/meal-analysis.types.js";
 
 export async function createQueuedAnalysis(
   userId: string,

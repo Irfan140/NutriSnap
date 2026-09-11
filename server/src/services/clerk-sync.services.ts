@@ -5,8 +5,8 @@ import {
   deleteUserByClerkId,
   findUserByClerkId,
   upsertUserByClerkId,
-  type UpsertUserInput,
 } from "../repositories/users.repositories.js";
+import type { UpsertUserInput } from "../types/user.types.js";
 import { logger } from "../utils/logger.utils.js";
 
 const clerkUserDataSchema = z.object({

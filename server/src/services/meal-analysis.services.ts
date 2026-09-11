@@ -2,19 +2,10 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { env } from "../config/env.config.js";
 import { createMealAnalysisModel } from "../lib/openai.lib.js";
 import { nutritionAnalysisSchema } from "../schemas/nutrition.schemas.js";
-import type { NutritionAnalysis, NutritionBreakdown } from "../schemas/nutrition.schemas.js";
+import type { NutritionAnalysis } from "../schemas/nutrition.schemas.js";
+import type { AiService, FoodAnalysis, MealAnalysisOutcome } from "../types/meal-analysis.types.js";
 import { toImageDataUri } from "../utils/image.utils.js";
 import { logger } from "../utils/logger.utils.js";
-
-export type FoodAnalysis = NutritionAnalysis & { nutrition: NutritionBreakdown };
-
-export type MealAnalysisOutcome =
-  | { readonly status: "success"; readonly analysis: FoodAnalysis; readonly message: string }
-  | { readonly status: "invalid-image" | "not-food" | "invalid-ai-response" | "provider-failure" };
-
-export type AiService = {
-  readonly analyzeMeal: (image: string) => Promise<MealAnalysisOutcome>;
-};
 
 // ── Prompt ───────────────────────────────────────────────────────────
 

@@ -1,12 +1,8 @@
 import { Queue } from "bullmq";
 import { env } from "../config/env.config.js";
+import type { MealAnalysisJobData } from "../types/meal-analysis.types.js";
 
 export const MEAL_ANALYSIS_QUEUE_NAME = "meal-analysis";
-
-export type MealAnalysisJobData = {
-  readonly analysisId: string;
-  readonly r2Key: string;
-};
 
 let queue: Queue<MealAnalysisJobData> | null = null;
 

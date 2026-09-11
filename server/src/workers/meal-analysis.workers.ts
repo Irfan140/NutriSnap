@@ -5,8 +5,8 @@ import { processMealAnalysis } from "../processors/meal-analysis.processors.js";
 import {
   closeMealAnalysisQueue,
   MEAL_ANALYSIS_QUEUE_NAME,
-  type MealAnalysisJobData,
 } from "../queues/meal-analysis.queues.js";
+import type { MealAnalysisJobData } from "../types/meal-analysis.types.js";
 import { logger } from "../utils/logger.utils.js";
 
 const CONCURRENCY = 3;

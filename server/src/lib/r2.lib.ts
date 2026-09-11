@@ -7,6 +7,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
 import { env } from "../config/env.config.js";
+import type { ObjectHead, PresignedDownload, PresignedUpload } from "../types/r2.types.js";
 
 // Upper bound accepted for a meal photo. Mobile downscales to ~1024px JPEG
 // before upload, so legitimate uploads stay far below this; the cap only
@@ -73,12 +74,6 @@ export function isUserImageKey(key: string, userId: string): boolean {
   );
 }
 
-export type PresignedUpload = {
-  readonly key: string;
-  readonly uploadUrl: string;
-  readonly expiresInSec: number;
-};
-
 /** Short-lived PUT URL so mobile uploads straight to the private bucket. */
 export async function createUploadUrl(key: string): Promise<PresignedUpload> {
   const config = requireR2Config();
@@ -95,11 +90,6 @@ export async function createUploadUrl(key: string): Promise<PresignedUpload> {
   return { key, uploadUrl, expiresInSec };
 }
 
-export type PresignedDownload = {
-  readonly downloadUrl: string;
-  readonly expiresInSec: number;
-};
-
 /** Short-lived GET URL for viewing a private object (never public). */
 export async function createDownloadUrl(key: string): Promise<PresignedDownload> {
   const config = requireR2Config();
@@ -111,11 +101,6 @@ export async function createDownloadUrl(key: string): Promise<PresignedDownload>
   );
   return { downloadUrl, expiresInSec };
 }
-
-export type ObjectHead = {
-  readonly contentLength: number;
-  readonly contentType: string | undefined;
-};
 
 /** Resolves to null when the object does not exist. */
 export async function headObject(key: string): Promise<ObjectHead | null> {

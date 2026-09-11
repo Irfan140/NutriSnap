@@ -46,7 +46,8 @@ NutriSnap/
 │   │   ├── config/env.config.ts  # Zod-validated env (dotenv)
 │   │   ├── routes/         # meal-analysis.routes.ts (POST /aifood 202 + GET /aifood/:id), uploads.routes.ts (POST /uploads/presign), webhooks.routes.ts (POST /webhooks/clerk)
 │   │   ├── controllers/    # meal-analysis.controllers.ts (thin handlers)
-│   │   ├── middlewares/    # auth, rate-limit (aifood + presign), async, error, request-logger + express.middlewares.d.ts (req.auth)
+│   │   ├── middlewares/    # auth, rate-limit (aifood + presign), async, error, request-logger
+│   │   ├── types/          # meal-analysis, nutrition, user, r2 (.types.ts) + express.types.d.ts (req.auth)
 │   │   ├── services/       # meal-analysis.services.ts (prompt + parser + service), clerk-sync.services.ts
 │   │   ├── lib/            # openai.lib.ts (ChatOpenAI factory), prisma.lib.ts (singleton), r2.lib.ts (presigned URLs)
 │   │   ├── schemas/        # meal.schemas.ts, nutrition.schemas.ts
@@ -199,7 +200,8 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 - **SHOULD avoid new dependencies** — prefer existing libs (Zod, LangChain, Pino). If a dep is required, justify and use the lightest ESM-compatible option.
 - **MUST never expose secrets** — do not log `OPENAI_API_KEY`/`CLERK_SECRET_KEY`, never commit `.env.local`/`.env.production`/any `.env` containing values, never inline secrets in code or docs.
 - **MUST validate env** — add new env vars to `mobile/src/config/env.ts` or `server/src/config/env.config.ts` with Zod; update `.env.example` accordingly (values empty).
-- **MUST follow existing patterns** — factory `createX`, `safeParse` + early return, `req.auth` augmentation via `server/src/middlewares/express.middlewares.d.ts`, haptics + a11y props on mobile touchables.
+- **MUST follow existing patterns** — factory `createX`, `safeParse` + early return, haptics + a11y props on mobile touchables.
+- **Types live in `src/types/`** — hand-written shared types go in dedicated `*.types.ts` files (`meal-analysis`, `nutrition`, `user`, `r2`) plus `express.types.d.ts` for the `req.auth` augmentation (`server/src/types/express.types.d.ts`). Zod-inferred types (`z.infer`) stay co-located with their schemas; never import runtime values into `types/` (use `import type` only).
 
 ## 8. Mobile Development
 
@@ -216,7 +218,7 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 ## 9. Backend Development
 
 - **Structure** — Thin routes → controllers → services → AI/model. Routes wire deps (`routes/meal-analysis.routes.ts:8` `createAiController()` with injectable `MealAnalysisDeps`). Controllers are pure request/response + Zod parse; services own retry/business logic.
-- **Auth** — `clerkMiddleware()` must stay before protected routes (`app.ts:13`). `requireAuth` (`middlewares/auth.middlewares.ts:12`) checks `getAuth(req).userId`, sets `req.auth` (typed via `middlewares/express.middlewares.d.ts`), 401 if absent.
+- **Auth** — `clerkMiddleware()` must stay before protected routes (`app.ts:13`). `requireAuth` (`middlewares/auth.middlewares.ts:12`) checks `getAuth(req).userId`, sets `req.auth` (typed via `types/express.types.d.ts`), 401 if absent.
 - **Rate limiting** — `analyzeMealRateLimiter` (`middlewares/rate-limit.middlewares.ts:11`): 20 req / 1 h, `keyGenerator: req.auth?.userId ?? ipKeyGenerator(ip)`, `standardHeaders draft-8`. Order after `requireAuth` so userId is available.
 - **Validation** — `enqueueMealAnalysisSchema` (`schemas/meal.schemas.ts:4`) enforces non-empty `imageKey`; controller additionally checks the key prefix (`isUserImageKey`), R2 HEAD existence and `MAX_UPLOAD_BYTES` (5 MiB). Image helpers in `utils/image.utils.ts` sniff magic bytes (JPEG/PNG/WebP/GIF), handle `data:image/...;base64,` prefixes. Controller maps outcomes to status codes (422 for invalid-image/not-food/invalid-ai-response, 502 for provider-failure).
 - **AI** — `ChatOpenAI` (`lib/openai.lib.ts:4`) configured from env (`OPENAI_API_KEY`, `OPENAI_VISION_MODEL`, `AI_TEMPERATURE`, timeout 30s). Prompt section in `services/meal-analysis.services.ts:21` forces raw JSON only. Parser section (`parseNutritionText`, `:88`) tries 3 strategies (`tryExtractJson`, ` ```json ``` `, ` ``` ``` `) and validates via `nutritionAnalysisSchema`. Helpers `isFoodAnalysis`/`formatNutritionMessage` produce the wire format consumed by mobile.

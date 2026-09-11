@@ -1,12 +1,6 @@
 import type { User } from "../../generated/prisma/client.js";
 import { prisma } from "../lib/prisma.lib.js";
-
-export type UpsertUserInput = {
-  readonly clerkId: string;
-  readonly email?: string;
-  readonly name?: string;
-  readonly imageUrl?: string;
-};
+import type { UpsertUserInput } from "../types/user.types.js";
 
 export async function findUserByClerkId(clerkId: string): Promise<User | null> {
   return prisma.user.findUnique({ where: { clerkId } });

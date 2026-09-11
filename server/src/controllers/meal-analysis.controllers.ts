@@ -18,11 +18,7 @@ import { enqueueMealAnalysis } from "../queues/meal-analysis.queues.js";
 import { enqueueMealAnalysisSchema, mealAnalysisParamsSchema } from "../schemas/meal.schemas.js";
 import { ensureUser } from "../services/clerk-sync.services.js";
 import { logger } from "../utils/logger.utils.js";
-import type { User } from "../../generated/prisma/client.js";
-
-export type AnalyzeMealResponse = {
-  readonly message: string;
-};
+import type { AnalyzeMealResponse, MealAnalysisDeps } from "../types/meal-analysis.types.js";
 
 type ErrorResponse = {
   readonly error: string;
@@ -31,23 +27,14 @@ type ErrorResponse = {
 type EnqueueResponseBody = { readonly analysisId: string; readonly status: string };
 
 type AnalysisResponseBody =
-  | ({ readonly analysisId: string; readonly status: string } & Partial<{
-      readonly message: string;
-      readonly error: string;
-      readonly imageUrl: string;
-    }>)
+  | ({ readonly analysisId: string; readonly status: string } & Partial<
+      AnalyzeMealResponse & { readonly error: string; readonly imageUrl: string }
+    >)
   | ErrorResponse;
 
 type PresignResponseBody =
   | { readonly key: string; readonly uploadUrl: string; readonly expiresInSec: number }
   | ErrorResponse;
-
-export type MealAnalysisDeps = {
-  readonly ensureUser: (clerkId: string) => Promise<User>;
-  readonly createQueuedAnalysis: typeof createQueuedAnalysis;
-  readonly findUserAnalysis: typeof findUserAnalysis;
-  readonly enqueueMealAnalysis: typeof enqueueMealAnalysis;
-};
 
 const defaultDeps: MealAnalysisDeps = {
   ensureUser,

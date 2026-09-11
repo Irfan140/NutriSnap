@@ -7,7 +7,7 @@ import {
   markAnalysisStatus,
   markAnalysisSucceeded,
 } from "../repositories/meal-analyses.repositories.js";
-import type { MealAnalysisJobData } from "../queues/meal-analysis.queues.js";
+import type { MealAnalysisJobData } from "../types/meal-analysis.types.js";
 import { aiService } from "../services/meal-analysis.services.js";
 import { logger } from "../utils/logger.utils.js";
 

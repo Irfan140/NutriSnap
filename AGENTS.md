@@ -12,7 +12,7 @@ NutriSnap is a full-stack AI meal analyzer. Users authenticate (Clerk), pick a m
 |---------|------|---------|-------|
 | Mobile app | `mobile/` | Expo SDK 55 + React Native 0.83 + React 19 | `mobile/src/app/_layout.tsx` (expo-router) |
 | Backend API | `server/` | Bun + Express 4 | `server/src/index.ts` → `server/src/app.ts` (+ `server/src/workers/meal-analysis.workers.ts` for jobs) |
-| Static docs | `docs/` | HTML | Privacy / delete-account pages |
+| Marketing site + legal | `web/` | React 19 + TS + Vite 8 + Tailwind v4 | `web/src/main.tsx` → `web/src/App.tsx` (hash-routed: home / privacy / delete-account) |
 | Shared assets | `assets/` | PNG | `banner.png`, `architecture.png` (README) |
 
 High-level flow: `mobile` (Clerk token) → `POST /api/uploads/presign` (gets short-lived R2 PUT URL) → mobile uploads JPEG straight to private R2 → `POST /api/aifood` (`{imageKey}`, returns `202 {analysisId}`) → BullMQ worker downloads from R2 → LangChain `ChatOpenAI` → Zod validates model JSON → persists `MealAnalysis` row → mobile polls `GET /api/aifood/:id` until `SUCCEEDED` and renders the formatted `message` (` ```json ` block + Markdown).
@@ -31,8 +31,8 @@ NutriSnap/
 │   │   │       └── (tabs)/ # Tabs: index (Home/analysis), history, profile, settings
 │   │   │       └── meal/[id].tsx # History detail (stack screen, reuses MealResultCard)
 │   │   ├── components/     # PrimaryButton, FormInput, Typography, OTAUpdatePrompt, GoogSignIn, MealResultCard
-│   │   ├── hooks/          # useOTAUpdate
-│   │   ├── lib/            # validation.ts (Zod), nutrition.ts (response parsing), meals-api.ts (poll/presign schemas), meal-image.ts (normalize)
+│   │   ├── hooks/          # useOTAUpdate + data hooks (useAnalyzeMeal/History/Detail/Stats/DeleteMeal/DeleteAccount)
+│   │   ├── lib/            # validation.ts (Zod), nutrition.ts (response parsing), meals-api.ts (API schemas + fetchers), meal-image.ts (normalize), query-client.ts, server-url.ts
 │   │   ├── theme/index.tsx # Light/dark tokens, ThemeProvider, healthScore helpers
 │   │   └── config/env.ts  # Zod-validated EXPO_PUBLIC_* env
 │   ├── assets/images/      # App icons, splash
@@ -60,7 +60,17 @@ NutriSnap/
 │   ├── prisma/             # schema.prisma (User, MealAnalysis) + migrations/
 │   ├── prisma7.config.ts   # Prisma 7 config (DATABASE_URL) — pass --config to CLI
 │   └── tsconfig.json       # Bundler, strict, noEmit, allowImportingTsExtensions
-├── docs/                   # Static HTML: delete-account/index.html, privacy/index.html
+├── web/                    # Marketing site + legal pages (Vite SPA, hash-routed)
+│   ├── src/
+│   │   ├── main.tsx        # Entry → App.tsx shell
+│   │   ├── App.tsx         # useSiteRoute shell: SiteHeader + page + SiteFooter
+│   │   ├── lib/            # site.ts (SITE constants), router.ts (hash router), utils.ts (cn)
+│   │   ├── components/     # SiteHeader, SiteFooter, LogoMark, GithubIcon, ui/ (shadcn-style Button/Card/Badge)
+│   │   ├── pages/          # home.tsx, privacy.tsx, delete-account.tsx
+│   │   └── index.css       # Tailwind v4 import + @theme font
+│   ├── index.html          # Title/meta/fonts entry
+│   ├── public/favicon.svg  # Leaf mark
+│   └── vite.config.ts      # react + tailwindcss plugins
 ├── assets/                 # Repo-level images for README/architecture
 ├── skills-lock.json        # Committed — pins agent skills versions
 └── .agents/                # Locally installed skills — ignored by Git (see .gitignore:1)
@@ -76,6 +86,8 @@ Path alias: `@/*` maps to repo root of `mobile/` per `mobile/tsconfig.json:5` (e
 - Media/UI: `expo-image-picker` 55, `expo-image-manipulator` 55, `expo-file-system` 55 (legacy `uploadAsync` for R2 PUT), `expo-image`, `react-native-markdown-display` 7.0.2, `react-native-circular-progress`, `@expo/vector-icons`, `expo-haptics`, `expo-font`, `expo-system-ui`, `expo-splash-screen`
 - OTA/Observability: `expo-updates` 55, `expo-observe` 0.2.5 (`AppMetricsRoot`), `expo-insights` 55, `expo-constants`, `expo-linking`
 - Validation: `zod` 4.4.3
+- Forms: `react-hook-form` 7 + `@hookform/resolvers` 5 (`zodResolver`, `Controller` around `FormInput`)
+- Data: `@tanstack/react-query` 5 (`QueryClientProvider` in root `_layout`, retries off — `AUTH_EXPIRED` must surface, polling owns its retries)
 - Lint: `eslint` 9 + `eslint-config-expo` flat config; React Compiler enabled (`app.config.ts:69`)
 
 **Server (`server/package.json`)**
@@ -90,6 +102,15 @@ Path alias: `@/*` maps to repo root of `mobile/` per `mobile/tsconfig.json:5` (e
 - Logging: `pino` 10 + `pino-http` 11, `pino-pretty` (dev only) — redacts `authorization`/`cookie`
 - Env: `dotenv` 17
 - Lint: `eslint` 10 (`eslint.config.mjs`, flat) + `prettier` 3 (`.prettierrc`); scripts `lint`, `format`
+
+**Web (`web/package.json`)**
+- React 19.2.8 + TypeScript + Vite 8 (`vite.config.ts`: `@vitejs/plugin-react` + `@tailwindcss/vite`)
+- Styling: `tailwindcss` 4 (`src/index.css` is just `@import "tailwindcss"` + `@theme` font token; no tailwind.config)
+- shadcn-style UI: `class-variance-authority` (Button/Badge variants), `clsx` + `tailwind-merge` (`cn()` in `src/lib/utils.ts`), hand-rolled `ui/button.tsx`, `ui/card.tsx`, `ui/badge.tsx` — no `@/*` alias, use relative imports
+- Icons: `lucide-react` — has NO brand icons, use local `GithubIcon` component instead
+- Routing: tiny hash router in `src/lib/router.ts` (`useSiteRoute`/`routeHref`/`navigateToSection`; `#/`, `#/privacy`, `#/delete-account`, plus pathname fallback) — no react-router, works on any static host with zero rewrites
+- Lint: `oxlint` (`bun run lint`); typecheck via `tsc -b` (runs as part of `bun run build`)
+- Package manager: Bun (`bun.lock` committed)
 
 ## 4. Architecture
 
@@ -120,6 +141,9 @@ npm install
 # server (Bun) — from server/
 bun install
 # alternative if Bun unavailable: npm install
+
+# web (Vite site) — from web/
+bun install
 ```
 
 ### Run
@@ -136,6 +160,13 @@ bun --watch src/index.ts   # npm run dev
 bun src/index.ts           # npm run start (prod)
 bun --watch src/workers/meal-analysis.workers.ts  # npm run dev:worker (BullMQ, needs Redis up)
 # If Bun task runner not available, use npx bun or node with tsx equivalent
+
+# web — from web/
+bun run dev        # vite dev server with HMR
+bun run build      # tsc -b && vite build → dist/
+bun run preview    # serve dist/ locally
+# Deploy: upload dist/ to any static host. Routes are hash-based
+# (#/, #/privacy, #/delete-account) so no server rewrites are needed.
 ```
 
 Prisma (from `server/`, DB must be up — see root `docker-compose.yml`):
@@ -178,6 +209,10 @@ npm run typecheck   # tsc --noEmit
 npm run lint        # eslint src --max-warnings 0
 npm run format:check  # prettier --check
 # or: bun tsc --noEmit
+
+# web — from web/
+bun run build   # tsc -b && vite build (typecheck + bundle)
+bun run lint    # oxlint, must pass with zero warnings
 ```
 
 No test script exists in this repo (verified `mobile/package.json`, `server/package.json` — no jest/vitest). Do not assume tests.
@@ -186,18 +221,19 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 
 - **TypeScript strict** — both `tsconfig.json` set `strict:true`, `noUncheckedIndexedAccess:true`. Fix type errors rather than suppressing. Server uses `verbatimModuleSyntax` + `.js` extension imports.
 - **Absolute imports (mobile)** — use `@/src/...` alias (`mobile/tsconfig.json:5` `@/* -> ./*`). Prefer `@/src/...` over deep relative paths for cross-directory imports. Server uses relative `./...js` ESM imports.
-- **Validation with Zod** — MUST validate all external input with Zod. Client: `mobile/src/lib/validation.ts` (signIn/signUp), `mobile/src/lib/nutrition.ts` (apiErrorSchema/analyzeResponseSchema), `mobile/src/lib/meals-api.ts` (presign/enqueue/poll schemas). Server: `server/src/schemas/meal.schemas.ts`, `server/src/schemas/nutrition.schemas.ts`, `clerk-sync.services.ts` (`clerkWebhookEventSchema`). Use `safeParse`, return first issue message on 400.
+- **Validation with Zod** — MUST validate all external input with Zod. Auth screens use RHF `useForm` + `zodResolver` over `validation.ts` schemas (`Controller` wrapping `FormInput`, `fieldState.error.message`, `isSubmitting` for buttons). Client: `mobile/src/lib/validation.ts` (signIn/signUp + email/code/password steps), `mobile/src/lib/nutrition.ts` (apiErrorSchema/analyzeResponseSchema), `mobile/src/lib/meals-api.ts` (presign/enqueue/poll/history/stats schemas). Server: `server/src/schemas/meal.schemas.ts`, `server/src/schemas/nutrition.schemas.ts`, `clerk-sync.services.ts` (`clerkWebhookEventSchema`). Use `safeParse`, return first issue message on 400.
 - **Error handling** — Mobile: `index.tsx` orchestrates presign → PUT → enqueue → poll, handles 401 (signOut), non-ok JSON via `apiErrorSchema`, `AUTH_EXPIRED`/timeout via user-facing error modal + haptics; stale attempts ignored via `attemptRef`. Server: `202` on enqueue; `GET /:id` returns `QUEUED|PROCESSING` (200), `SUCCEEDED` (200 + `message`), `FAILED` (422 + `error`), `404` on foreign id; `503` when R2 is unconfigured; `error.middlewares.ts` handles `entity.too.large` → 413 and logs via `req.log ?? logger`.
 - **API conventions** — JSON over HTTPS; `POST /api/uploads/presign` (no body) → `{key, uploadUrl, expiresInSec}`; `POST /api/aifood` body `{imageKey: string}` (must be under caller's `meals/<userId>/` prefix) → `202 {analysisId, status}`; `GET /api/aifood/:id` → status/result; `GET /api/aifood?page=&limit=` → `{items, page, limit, total}` history page (light rows, no `message`); `GET /api/aifood/stats` → `{total, succeeded, failed, averageHealthScore, currentStreak, bestStreak, lastAnalyzedAt}` (declared before `/:id` so `stats` never matches the param); `DELETE /api/aifood/:id` → `204` (drops queued job, row, R2 object); `DELETE /api/account` → `204` (full erasure: jobs + objects + rows + Clerk user, data-first); `POST /api/webhooks/clerk` takes raw Svix body. Health check `GET /health → {status:"ok"}`.
-- **Logging** — Use `server/src/utils/logger.utils.ts` (pino). Request logger adds `userId` prop, auto-ignores `/health`, maps 5xx→error/4xx→warn. Never log `Authorization`/`Cookie` (redacted). Client uses `console.error`/`console.warn` only in `__DEV__` / catch blocks.
+- **Logging** — Use `server/src/utils/logger.utils.ts` (pino). Request logger adds `userId` prop, auto-ignores `/health`, maps 5xx→error/4xx→warn. Never log `Authorization`/`Cookie` (redacted). Client uses `console.error`/`console.warn` only in `__DEV__` / catch blocks — and never for a `UserFacingError` (expected outcome already shown in UI).
 - **Naming** — Components `PascalCase` (`PrimaryButton.tsx`), hooks `useXxx`, route groups `(auth)`/`(app)`/`(tabs)`, Zod schemas `xxxSchema`, logger `logger`, env `env`.
 - **Styling** — Inline `StyleSheet.create` with theme tokens; never hardcode colors — use `useTheme().colors` + `radius`/`spacing` from `mobile/src/theme/index.tsx`. Dark/light variants required if adding UI.
+- **Web UI** — shadcn-style primitives only (`components/ui/button.tsx`, `ui/card.tsx`, `ui/badge.tsx` + `cn()`); emerald/slate Tailwind palette matching mobile theme (`primary #10B981`); icons from `lucide-react`, brand/store marks via local `GithubIcon`/`PlayStoreIcon`. Shared constants (URLs incl. `playStoreUrl`, email, dates) live in `web/src/lib/site.ts`. Navigate via `routeHref`/`navigateToSection` from `web/src/lib/router.ts` — never hardcode `#/...` hashes. Relative imports (no alias).
 - **Exports** — Prefer factory functions (`createAiController`, `createMealAnalysisModel`, `createAiService`) for testability/DI over singletons, except exported singleton `aiService` in `services/meal-analysis.services.ts:319` for wiring.
 
 ## 7. AI/Agent Development Rules
 
 - **MUST inspect existing code before adding abstractions** — read target file + neighbours (e.g., existing `utils/image.utils.ts`, `theme/index.tsx`) and reuse.
-- **MUST reuse existing utilities/components** — `PrimaryButton`, `FormInput`, `Typography`, `useTheme`, `healthScoreColor`, `parseNutritionData`, `prepareMealImage`, `pollAnalysisUntilDone`, `fetchMealsPage`, `fetchMealsStats`, `deleteMealAnalysis`, `deleteAccount`, `parseResultMessage`, `MealResultCard`, `toImageDataUri`/`detectImageMimeType`, `logger`, `asyncHandler`, `enqueueMealAnalysis`, `ensureUser`, repositories (`users`, `meal-analyses`).
+- **MUST reuse existing utilities/components** — `PrimaryButton`, `FormInput`, `Typography`, `useTheme`, `healthScoreColor`, `parseNutritionData`, `prepareMealImage`, `pollAnalysisUntilDone`, `fetchMealsPage`, `fetchMealsStats`, `deleteMealAnalysis`, `deleteAccount`, `parseResultMessage`, `UserFacingError`, `MealResultCard`, `useAnalyzeMeal`, `useMealHistory`, `useMealDetail`, `useMealStats`, `useDeleteMeal`, `useDeleteAccount`, `toImageDataUri`/`detectImageMimeType`, `logger`, `asyncHandler`, `enqueueMealAnalysis`, `ensureUser`, repositories (`users`, `meal-analyses`).
 - **MUST preserve architecture** — schema changes via Prisma migrate (never hand-edit migrations); do not add another auth provider or call the AI provider from mobile. Keep middleware order in `server/src/app.ts` (webhooks raw-first) and rate-limit keying (`userId ?? ip`).
 - **MUST keep changes scoped** — modify only files required by the task. Do not reformat unrelated files, bump deps, or regenerate `expo-env.d.ts`/`dist/`.
 - **SHOULD avoid new dependencies** — prefer existing libs (Zod, LangChain, Pino). If a dep is required, justify and use the lightest ESM-compatible option.
@@ -210,8 +246,8 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 
 - **Expo Router** — File-based; groups `(auth)` and `(app)` are route groups (parentheses stripped). `_layout.tsx` per group handles auth gating (`useAuth().isLoaded/isSignedIn` + `Redirect`). Tabs defined in `(tabs)/_layout.tsx` with `Tabs`, `screenListeners.tabPress → Haptics.selectionAsync()`, absolute floating tabBar style. Enable `typedRoutes:true` + `reactCompiler:true` (`app.config.ts:68-71`) — typed `Link` hrefs required.
 - **Clerk auth** — `ClerkProvider` + `tokenCache` from `@clerk/expo/token-cache` + `expo-secure-store` (`mobile/src/app/_layout.tsx:16`). Use `useAuth()`/`useSignIn()`/`useUser()`. Send `Authorization: Bearer ${await getToken()}` for API calls. On 401/missing token, `signOut()` and show user-facing message. See `sso-callback.tsx`, `GoogSignIn.tsx` for OAuth flow.
-- **Image flow** — `expo-image-picker` with `quality:1`, `allowsEditing:true`. Normalize via `prepareMealImage` (`meal-image.ts`: ≤1024px JPEG via `expo-image-manipulator`, also converts HEIC) → `POST /api/uploads/presign` → PUT via `expo-file-system/legacy` `uploadAsync` (`BINARY_CONTENT`, `Content-Type: image/jpeg`) → `POST /api/aifood` → poll with `pollAnalysisUntilDone` (`meals-api.ts`). Request `MediaLibrary` permission first. Server caps uploads at 5 MiB (`lib/r2.lib.ts:16`); presigned PUT URLs expire in 5 min.
-- **Data fetching** — Raw `fetch` in `index.tsx` (no React Query/SWR currently). Presign/enqueue validate with `meals-api.ts` schemas, errors via `apiErrorSchema`, result `message` via the `nutrition.ts` path. History (`history.tsx` + `meal/[id].tsx`) pages via `fetchMealsPage` (offset, 20/page) with pull-to-refresh, focus-refetch (mount + focus via `authRef`/`inflightRef`), and `onEndReached` paging; rows push the stack detail screen which reuses `MealResultCard`. Clerk `getToken`/`signOut` identities are unstable across renders — read them through a ref (`authRef`) inside `useCallback` data loaders and never list them in effect deps, or mount/focus effects refetch in a loop (see history fix). If adding hooks, co-locate near `src/hooks/` or `src/lib/meals-api.ts`.
+- **Image flow** — `expo-image-picker` with `quality:1`, `allowsEditing:true`. A source chooser offers camera (`launchCameraAsync` + `requestCameraPermissionsAsync`) or gallery (`launchImageLibraryAsync` + `requestMediaLibraryPermissionsAsync`). Normalize via `prepareMealImage` (`meal-image.ts`: ≤1024px JPEG via `expo-image-manipulator`, also converts HEIC) → `POST /api/uploads/presign` → PUT via `expo-file-system/legacy` `uploadAsync` (`BINARY_CONTENT`, `Content-Type: image/jpeg`) → `POST /api/aifood` → poll with `pollAnalysisUntilDone` (`meals-api.ts`). Native camera/photo permissions come from the `expo-image-picker` plugin entry in `app.config.ts` (`microphonePermission: false`) — changing it requires a new dev-client build, OTA cannot deliver it. Server caps uploads at 5 MiB (`lib/r2.lib.ts`); presigned PUT URLs expire in 5 min.
+- **Data fetching** — TanStack Query throughout (`src/hooks/`: `useAnalyzeMeal` mutation for presign→PUT→enqueue→poll, `useMealHistory` infinite query, `useMealDetail`/`useMealStats` queries, `useDeleteMeal`/`useDeleteAccount` mutations). Cache keys scoped per Clerk `userId` (`["meals",…]`, `["meal",…]`, `["meal-stats",…]`); analyze/delete mutations invalidate `["meals"]` + `["meal-stats"]`. 401 surfaces as `AUTH_EXPIRED` (see `isAuthExpired`) for screens to sign out on. Focus refetch via `useFocusEffect`; depend on destructured stable query methods, never the whole result object (loop risk). Result `message` still renders via the `nutrition.ts` path. If adding hooks, co-locate in `src/hooks/`.
 - **UI / Theme** — `ThemeProvider` (`src/theme/index.tsx:148`) reads `SecureStore` key `nutrisnap_theme_mode`, syncs with `useColorScheme`, exposes `colors`, `isDark`, `cardShadow`/`buttonShadow`, `setThemeMode`. Use `lightColors`/`darkColors` tokens; helpers `healthScoreColor(score, colors)` / `scoreLabel(score)`. All screens use `SafeAreaView` + `useSafeAreaInsets`. Apply `buttonShadow`/`cardShadow` from theme (light vs dark variants at `theme/index.tsx:96-114`).
 - **OTA** — `useOTAUpdate` (`src/hooks/useOTAUpdate.ts`) wraps `expo-updates` with cooldown 30 min, auto-download, AppState foreground check. Displayed via `OTAUpdatePrompt` component. Do not break the `isUpdatePending`/`isUpdateAvailable` flow.
 - **Observability** — `AppMetricsRoot.wrap(Layout)` + `AppMetrics.markInteractive()` (`_layout.tsx:26`). Keep for cold-start metrics.
@@ -275,7 +311,7 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 - **Branching** — `main` and `dev` exist (`git branch -a` shows `remotes/origin/main`, `remotes/origin/dev`, `HEAD -> origin/main`; active local is `dev`). No branch convention documented beyond `dev` as integration branch (merges like `Merge pull request #24 from Irfan140/dev`). Prefer feature branches off `dev` unless instructed otherwise.
 - **Commit style** — Conventional-ish prefixes observed: `feat:`, `refactor:`, `chore:` with descriptive body (e.g., `chore: ignore installed agent skills`). Keep commits scoped.
 - **Status before commit** — Verify `git status` / `git diff --stat` — only stage intended files; never stage `.env.local`, `node_modules/`, `dist/`, `.expo/`.
-- **Ignored** — Root `.agents/`; mobile `node_modules/`, `.expo/`, `dist/`, `web-build/`, `expo-env.d.ts`, native keys (`*.jks`, `*.p8`, `*.mobileprovision`), `*.tsbuildinfo`, auto-generated `ios/`/`android/`; server `node_modules/`, `out/`, `dist/`, `coverage/`, `logs/`, dotenv locals, `.cache/`.
+- **Ignored** — Root `.agents/`; mobile `node_modules/`, `.expo/`, `dist/`, `web-build/`, `expo-env.d.ts`, native keys (`*.jks`, `*.p8`, `*.mobileprovision`), `*.tsbuildinfo`, auto-generated `ios/`/`android/`; server `node_modules/`, `out/`, `dist/`, `coverage/`, `logs/`, dotenv locals, `.cache/`; web `node_modules/`, `dist/` (see `web/.gitignore`).
 - **Generated** — Do not hand-edit `expo-env.d.ts`, `dist/`, `node_modules/` or commit them. `app.config.ts` is source of truth for `app.json`.
 
 ## 13. Verification Checklist
@@ -316,13 +352,13 @@ Run **only** checks that exist; skip absent ones (no tests).
   ```bash
   cd server && bunx --bun prisma migrate dev --name <name> --config prisma7.config.ts
   ```
-- [ ] **Mobile manual**
-  - Expo start loads without `Invalid environment configuration` error.
+- [ ] **Mobile manual**  - Expo start loads without `Invalid environment configuration` error.
   - Sign-in → Home → pick image → Analyze succeeds (or shows expected 401/422/429 modal).
   - History tab lists past analyses (thumbnail, score, date) → tap opens detail with full breakdown; pull-to-refresh + paging work.
   - Profile stats card shows totals, average score, streaks (zeros + hint when empty).
   - Meal detail delete removes the row (list refreshes on return); Profile danger zone deletes the account (double-confirm → sign-out).
   - Tab press triggers haptics, theme toggle persists via SecureStore.
+- [ ] **Web manual** — `bun run dev` loads without errors; home sections, `#/privacy`, and `#/delete-account` all render; header/footer nav works on mobile (hamburger) and desktop; `bun run build` + `bun run lint` pass clean.
 - [ ] **No secrets/ignored files staged** — `git status --ignored` shows `.env.local`/`.agents/` not staged.
 - [ ] **No `AGENTS.md` invented conventions** — every rule references an existing file/pattern.
 

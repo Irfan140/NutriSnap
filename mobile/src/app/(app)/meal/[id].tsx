@@ -14,118 +14,97 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import MealResultCard from "@/src/components/MealResultCard";
 import { Body, BodySemibold, H3 } from "@/src/components/Typography";
-import { env } from "@/src/config/env";
-import { analysisStatusResponseSchema, deleteMealAnalysis } from "@/src/lib/meals-api";
-import {
-  apiErrorSchema,
-  parseResultMessage,
-  type NutritionData,
-} from "@/src/lib/nutrition";
+import { useDeleteMeal } from "@/src/hooks/useDeleteMeal";
+import { useMealDetail } from "@/src/hooks/useMealDetail";
+import { parseResultMessage } from "@/src/lib/nutrition";
+import { isAuthExpired } from "@/src/lib/query-client";
 import { radius, useTheme } from "@/src/theme/index";
 
-const SERVER_URL = env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
-const ANALYZE_URL = SERVER_URL ? `${SERVER_URL}/api/aifood` : undefined;
+function DetailErrorCard({
+  title,
+  message,
+  onRetry,
+  onDelete,
+  deleting,
+}: {
+  readonly title: string;
+  readonly message: string;
+  readonly onRetry: () => void;
+  readonly onDelete?: () => void;
+  readonly deleting?: boolean;
+}) {
+  const { colors, cardShadow } = useTheme();
+  return (
+    <View style={[styles.stateCard, { backgroundColor: colors.surface }, cardShadow]}>
+      <Ionicons name="alert-circle-outline" size={32} color={colors.danger} />
+      <H3 align="center" style={{ marginTop: 12 }}>
+        {title}
+      </H3>
+      <Body align="center" dim style={{ marginTop: 6 }}>
+        {message}
+      </Body>
+      <TouchableOpacity
+        style={[styles.retryButton, { backgroundColor: colors.primary }]}
+        onPress={onRetry}
+        accessibilityRole="button"
+        accessibilityLabel="Retry loading analysis"
+        hitSlop={4}
+      >
+        <BodySemibold style={{ color: colors.textInverse }}>Try Again</BodySemibold>
+      </TouchableOpacity>
+      {onDelete ? (
+        <DeleteAnalysisButton onPress={onDelete} deleting={deleting ?? false} />
+      ) : null}
+    </View>
+  );
+}
+
+function DeleteAnalysisButton({
+  onPress,
+  deleting,
+}: {
+  readonly onPress: () => void;
+  readonly deleting: boolean;
+}) {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity
+      style={[styles.deleteButton, { borderColor: colors.danger }]}
+      onPress={onPress}
+      disabled={deleting}
+      accessibilityRole="button"
+      accessibilityLabel="Delete this analysis"
+      accessibilityHint="Permanently removes the photo and report"
+      hitSlop={4}
+    >
+      <Ionicons name="trash-outline" size={18} color={colors.danger} style={{ marginRight: 8 }} />
+      <BodySemibold style={{ color: colors.danger }}>
+        {deleting ? "Deleting…" : "Delete analysis"}
+      </BodySemibold>
+    </TouchableOpacity>
+  );
+}
 
 export default function MealDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getToken, signOut } = useAuth();
-  const { colors, cardShadow } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
-  const [nutrition, setNutrition] = useState<NutritionData | null>(null);
-  const [markdown, setMarkdown] = useState("");
-  const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
   const [imgHidden, setImgHidden] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const mountedRef = useRef(true);
+  const validId = typeof id === "string" && id !== "" ? id : undefined;
+  const detail = useMealDetail(validId);
+  const deleteMeal = useDeleteMeal();
 
+  const signOutRef = useRef(signOut);
+  signOutRef.current = signOut;
   useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  // Same stability guard as history.tsx: Clerk callbacks change identity
-  // across renders, so read them through a ref to keep `load` (and its
-  // mount effect) from refetching in a loop.
-  const authRef = useRef({ getToken, signOut });
-  authRef.current = { getToken, signOut };
-
-  const load = useCallback(async () => {
-    const { getToken, signOut } = authRef.current;
-    if (!ANALYZE_URL || typeof id !== "string" || id === "") {
-      setErrorMessage("Could not open this analysis.");
-      setLoading(false);
-      return;
+    if (detail.error && isAuthExpired(detail.error)) {
+      void signOutRef.current();
     }
-    if (mountedRef.current) {
-      setLoading(true);
-      setErrorMessage(null);
-    }
-    try {
-      const token = await getToken();
-      if (!token) {
-        await signOut();
-        return;
-      }
-      const res = await fetch(`${ANALYZE_URL}/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.status === 401) {
-        await signOut();
-        return;
-      }
-      let payload: unknown;
-      try {
-        payload = await res.json();
-      } catch {
-        throw new Error(`Unexpected server response (${res.status}).`);
-      }
-      if (!res.ok && res.status !== 422) {
-        const parsedError = apiErrorSchema.safeParse(payload);
-        throw new Error(
-          parsedError.success ? parsedError.data.error : `Request failed (${res.status}).`,
-        );
-      }
-      const parsed = analysisStatusResponseSchema.safeParse(payload);
-      if (!parsed.success) {
-        throw new Error("Unexpected server response.");
-      }
-      if (!mountedRef.current) return;
-      setStatus(parsed.data.status);
-      setImageUrl(parsed.data.imageUrl);
-      if (parsed.data.status === "FAILED") {
-        setErrorMessage(parsed.data.error ?? "Analysis failed.");
-        return;
-      }
-      if (parsed.data.status !== "SUCCEEDED") {
-        setErrorMessage("This analysis is still running. Please try again shortly.");
-        return;
-      }
-      const result = parseResultMessage(parsed.data.message ?? "");
-      if (!result) {
-        setErrorMessage("The AI returned data in an unexpected format.");
-        return;
-      }
-      setNutrition(result.nutrition);
-      setMarkdown(result.markdown);
-    } catch (err) {
-      if (!mountedRef.current) return;
-      setErrorMessage(err instanceof Error ? err.message : "Could not load this analysis.");
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  }, [detail.error]);
 
   const confirmDelete = useCallback(() => {
-    if (typeof id !== "string" || id === "" || !ANALYZE_URL) return;
+    if (!validId) return;
     Alert.alert(
       "Delete this analysis?",
       "The photo and its nutrition report will be permanently removed.",
@@ -134,30 +113,45 @@ export default function MealDetailScreen() {
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => void (async () => {
-            if (mountedRef.current) setDeleting(true);
-            try {
-              const { getToken } = authRef.current;
-              await deleteMealAnalysis(ANALYZE_URL, id, getToken);
-            } catch (err) {
-              if (!mountedRef.current) return;
-              setDeleting(false);
-              if (err instanceof Error && err.message === "AUTH_EXPIRED") {
-                await authRef.current.signOut();
-                return;
-              }
-              Alert.alert(
-                "Delete failed",
-                err instanceof Error ? err.message : "Could not delete this analysis.",
-              );
-              return;
-            }
-            router.back();
-          })(),
+          onPress: () =>
+            deleteMeal.mutate(
+              { id: validId, getToken },
+              {
+                onSuccess: () => router.back(),
+                onError: (err) => {
+                  if (isAuthExpired(err)) {
+                    void signOutRef.current();
+                    return;
+                  }
+                  Alert.alert(
+                    "Delete failed",
+                    err instanceof Error ? err.message : "Could not delete this analysis.",
+                  );
+                },
+              },
+            ),
         },
       ],
     );
-  }, [id]);
+  }, [validId, getToken, deleteMeal]);
+
+  const { refetch: refetchDetail } = detail;
+
+  const refetch = useCallback(() => {
+    void refetchDetail();
+  }, [refetchDetail]);
+
+  const payload = detail.data ?? null;
+  const status = payload?.status ?? null;
+  const transportError =
+    !validId || (!payload && detail.error && !isAuthExpired(detail.error))
+      ? !validId
+        ? "Could not open this analysis."
+        : "Could not load this analysis."
+      : null;
+  const failedError = status === "FAILED" ? (payload?.error ?? "Analysis failed.") : null;
+  const stillRunning = status !== null && status !== "SUCCEEDED" && status !== "FAILED";
+  const parsed = status === "SUCCEEDED" ? parseResultMessage(payload?.message ?? "") : undefined;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -165,54 +159,40 @@ export default function MealDetailScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
-        {loading ? (
+        {detail.isPending ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Body dim style={{ marginTop: 12 }}>
               Loading analysis…
             </Body>
           </View>
-        ) : errorMessage ? (
-          <View style={[styles.stateCard, { backgroundColor: colors.surface }, cardShadow]}>
-            <Ionicons name="alert-circle-outline" size={32} color={colors.danger} />
-            <H3 align="center" style={{ marginTop: 12 }}>
-              {status && status !== "SUCCEEDED" && status !== "FAILED"
-                ? "Still analyzing"
-                : "Something went wrong"}
-            </H3>
-            <Body align="center" dim style={{ marginTop: 6 }}>
-              {errorMessage}
-            </Body>
-            <TouchableOpacity
-              style={[styles.retryButton, { backgroundColor: colors.primary }]}
-              onPress={() => void load()}
-              accessibilityRole="button"
-              accessibilityLabel="Retry loading analysis"
-              hitSlop={4}
-            >
-              <BodySemibold style={{ color: colors.textInverse }}>Try Again</BodySemibold>
-            </TouchableOpacity>
-            {status === "FAILED" ? (
-              <TouchableOpacity
-                style={[styles.deleteButton, { borderColor: colors.danger }]}
-                onPress={confirmDelete}
-                disabled={deleting}
-                accessibilityRole="button"
-                accessibilityLabel="Delete this analysis"
-                accessibilityHint="Permanently removes the photo and report"
-                hitSlop={4}
-              >
-                <BodySemibold style={{ color: colors.danger }}>
-                  {deleting ? "Deleting…" : "Delete analysis"}
-                </BodySemibold>
-              </TouchableOpacity>
-            ) : null}
-          </View>
+        ) : transportError ? (
+          <DetailErrorCard title="Something went wrong" message={transportError} onRetry={refetch} />
+        ) : failedError ? (
+          <DetailErrorCard
+            title="Something went wrong"
+            message={failedError}
+            onRetry={refetch}
+            onDelete={confirmDelete}
+            deleting={deleteMeal.isPending}
+          />
+        ) : stillRunning ? (
+          <DetailErrorCard
+            title="Still analyzing"
+            message="This analysis is still running. Please try again shortly."
+            onRetry={refetch}
+          />
+        ) : !parsed ? (
+          <DetailErrorCard
+            title="Something went wrong"
+            message="The AI returned data in an unexpected format."
+            onRetry={refetch}
+          />
         ) : (
           <>
-            {imageUrl && !imgHidden ? (
+            {payload?.imageUrl && !imgHidden ? (
               <Image
-                source={{ uri: imageUrl }}
+                source={{ uri: payload.imageUrl }}
                 style={[styles.photo, { backgroundColor: colors.border }]}
                 contentFit="cover"
                 onError={() => setImgHidden(true)}
@@ -220,26 +200,8 @@ export default function MealDetailScreen() {
                 accessibilityLabel="Analyzed meal photo"
               />
             ) : null}
-            <MealResultCard nutrition={nutrition} markdown={markdown} />
-            <TouchableOpacity
-              style={[styles.deleteButton, { borderColor: colors.danger }]}
-              onPress={confirmDelete}
-              disabled={deleting}
-              accessibilityRole="button"
-              accessibilityLabel="Delete this analysis"
-              accessibilityHint="Permanently removes the photo and report"
-              hitSlop={4}
-            >
-              <Ionicons
-                name="trash-outline"
-                size={18}
-                color={colors.danger}
-                style={{ marginRight: 8 }}
-              />
-              <BodySemibold style={{ color: colors.danger }}>
-                {deleting ? "Deleting…" : "Delete analysis"}
-              </BodySemibold>
-            </TouchableOpacity>
+            <MealResultCard nutrition={parsed.nutrition} markdown={parsed.markdown} />
+            <DeleteAnalysisButton onPress={confirmDelete} deleting={deleteMeal.isPending} />
           </>
         )}
       </ScrollView>

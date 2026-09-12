@@ -1,7 +1,8 @@
 import { useAuth, useSignIn } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
-import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useForm } from "react-hook-form";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -12,12 +13,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { z } from "zod";
 import FormInput from "@/src/components/FormInput";
 import GoogleSignIn from "@/src/components/GoogSignIn";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import { H1, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
-import { fieldErrorMessage, signInSchema } from "@/src/lib/validation";
+import { signInSchema, type SignInInput } from "@/src/lib/validation";
 import { useTheme, radius } from "@/src/theme/index";
 
 export default function SignInScreen() {
@@ -25,28 +25,22 @@ export default function SignInScreen() {
   const { isLoaded } = useAuth();
   const { colors, cardShadow } = useTheme();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [formError, setFormError] = useState<z.ZodError | null>(null);
+  const {
+    control,
+    handleSubmit,
+    formState: { isSubmitting },
+  } = useForm<SignInInput>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: { email: "", password: "" },
+  });
 
-  const onSignInPress = async () => {
+  const onSignInPress = async (data: SignInInput) => {
     if (!isLoaded) return;
-
-    const parsed = signInSchema.safeParse({ email, password });
-
-    if (!parsed.success) {
-      setFormError(parsed.error);
-      return;
-    }
-
-    setFormError(null);
-    setIsLoading(true);
 
     try {
       const attempt = await signIn.password({
-        identifier: parsed.data.email,
-        password: parsed.data.password,
+        identifier: data.email,
+        password: data.password,
       });
 
       if (attempt.error) {
@@ -59,10 +53,10 @@ export default function SignInScreen() {
     } catch (err) {
       console.error(JSON.stringify(err, null, 2));
       Alert.alert("Sign In Failed", "Please check your email and password");
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  const submit = () => void handleSubmit(onSignInPress)();
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -90,34 +84,46 @@ export default function SignInScreen() {
           </Subtitle>
 
           <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
-            <FormInput
-              label="Email address"
-              icon="mail-outline"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              keyboardType="email-address"
-              returnKeyType="next"
-              textContentType="emailAddress"
-              error={fieldErrorMessage(formError, "email")}
+            <Controller
+              control={control}
+              name="email"
+              render={({ field: { value, onChange }, fieldState: { error } }) => (
+                <FormInput
+                  label="Email address"
+                  icon="mail-outline"
+                  value={value}
+                  onChangeText={onChange}
+                  placeholder="you@example.com"
+                  keyboardType="email-address"
+                  returnKeyType="next"
+                  textContentType="emailAddress"
+                  error={error?.message}
+                />
+              )}
             />
-            <FormInput
-              label="Password"
-              icon="lock-closed-outline"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter your password"
-              secureTextEntry
-              returnKeyType="done"
-              textContentType="password"
-              onSubmitEditing={onSignInPress}
-              error={fieldErrorMessage(formError, "password")}
+            <Controller
+              control={control}
+              name="password"
+              render={({ field: { value, onChange }, fieldState: { error } }) => (
+                <FormInput
+                  label="Password"
+                  icon="lock-closed-outline"
+                  value={value}
+                  onChangeText={onChange}
+                  placeholder="Enter your password"
+                  secureTextEntry
+                  returnKeyType="done"
+                  textContentType="password"
+                  onSubmitEditing={submit}
+                  error={error?.message}
+                />
+              )}
             />
             <PrimaryButton
               label="Sign In"
               icon="log-in-outline"
-              onPress={onSignInPress}
-              loading={isLoading}
+              onPress={submit}
+              loading={isSubmitting}
             />
 
             <Link href="/(auth)/forgot-password" asChild>

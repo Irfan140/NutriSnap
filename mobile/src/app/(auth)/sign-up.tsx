@@ -1,7 +1,9 @@
 import { useAuth, useSignUp } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -12,14 +14,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { z } from "zod";
 import FormInput from "@/src/components/FormInput";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import { H1, H2, Subtitle, Body, BodySemibold } from "@/src/components/Typography";
 import {
-  fieldErrorMessage,
   signUpSchema,
   verificationCodeSchema,
+  type SignUpInput,
+  type VerificationCodeInput,
 } from "@/src/lib/validation";
 import { useTheme, radius } from "@/src/theme/index";
 
@@ -28,29 +30,25 @@ export default function SignUpScreen() {
   const { isLoaded } = useAuth();
   const { colors, cardShadow } = useTheme();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
   const [pendingVerification, setPendingVerification] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [formError, setFormError] = useState<z.ZodError | null>(null);
 
-  const onSignUpPress = async () => {
+  const signUpForm = useForm<SignUpInput>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: { email: "", password: "" },
+  });
+
+  const codeForm = useForm<VerificationCodeInput>({
+    resolver: zodResolver(verificationCodeSchema),
+    defaultValues: { code: "" },
+  });
+
+  const onSignUpPress = async (data: SignUpInput) => {
     if (!isLoaded) return;
-
-    const parsed = signUpSchema.safeParse({ email, password });
-    if (!parsed.success) {
-      setFormError(parsed.error);
-      return;
-    }
-
-    setFormError(null);
-    setIsLoading(true);
 
     try {
       const createResult = await signUp.create({
-        emailAddress: parsed.data.email,
-        password: parsed.data.password,
+        emailAddress: data.email,
+        password: data.password,
       });
 
       if (createResult.error) {
@@ -63,26 +61,15 @@ export default function SignUpScreen() {
     } catch (err) {
       console.error(JSON.stringify(err, null, 2));
       Alert.alert("Sign Up Failed", "Please check your email and try again");
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const onVerifyPress = async () => {
+  const onVerifyPress = async (data: VerificationCodeInput) => {
     if (!isLoaded) return;
-
-    const parsed = verificationCodeSchema.safeParse({ code });
-    if (!parsed.success) {
-      setFormError(parsed.error);
-      return;
-    }
-
-    setFormError(null);
-    setIsLoading(true);
 
     try {
       const verifyResult = await signUp.verifications.verifyEmailCode({
-        code: parsed.data.code,
+        code: data.code,
       });
 
       if (verifyResult.error) {
@@ -97,10 +84,11 @@ export default function SignUpScreen() {
     } catch (err) {
       console.error(JSON.stringify(err, null, 2));
       Alert.alert("Verification Failed", "Please check your code and try again");
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  const submitSignUp = () => void signUpForm.handleSubmit(onSignUpPress)();
+  const submitCode = () => void codeForm.handleSubmit(onVerifyPress)();
 
   if (pendingVerification) {
     return (
@@ -119,26 +107,32 @@ export default function SignUpScreen() {
             </View>
             <H2 align="center">Check your email</H2>
             <Subtitle align="center" style={{ marginTop: 8, marginBottom: 24 }}>
-              {"We've sent a verification code to"} {email}
+              {"We've sent a verification code to"} {signUpForm.getValues("email")}
             </Subtitle>
 
             <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
-              <FormInput
-                label="Verification code"
-                icon="key-outline"
-                value={code}
-                onChangeText={setCode}
-                placeholder="000000"
-                keyboardType="number-pad"
-                maxLength={6}
-                centerText
-                error={fieldErrorMessage(formError, "code")}
+              <Controller
+                control={codeForm.control}
+                name="code"
+                render={({ field: { value, onChange }, fieldState: { error } }) => (
+                  <FormInput
+                    label="Verification code"
+                    icon="key-outline"
+                    value={value}
+                    onChangeText={onChange}
+                    placeholder="000000"
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    centerText
+                    error={error?.message}
+                  />
+                )}
               />
               <PrimaryButton
                 label="Verify Email"
                 icon="checkmark-circle-outline"
-                onPress={onVerifyPress}
-                loading={isLoading}
+                onPress={submitCode}
+                loading={codeForm.formState.isSubmitting}
               />
             </View>
           </ScrollView>
@@ -173,34 +167,46 @@ export default function SignUpScreen() {
           </Subtitle>
 
           <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
-            <FormInput
-              label="Email address"
-              icon="mail-outline"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              keyboardType="email-address"
-              returnKeyType="next"
-              textContentType="emailAddress"
-              error={fieldErrorMessage(formError, "email")}
+            <Controller
+              control={signUpForm.control}
+              name="email"
+              render={({ field: { value, onChange }, fieldState: { error } }) => (
+                <FormInput
+                  label="Email address"
+                  icon="mail-outline"
+                  value={value}
+                  onChangeText={onChange}
+                  placeholder="you@example.com"
+                  keyboardType="email-address"
+                  returnKeyType="next"
+                  textContentType="emailAddress"
+                  error={error?.message}
+                />
+              )}
             />
-            <FormInput
-              label="Password"
-              icon="lock-closed-outline"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Create a password (min. 8 characters)"
-              secureTextEntry
-              returnKeyType="done"
-              textContentType="newPassword"
-              onSubmitEditing={onSignUpPress}
-              error={fieldErrorMessage(formError, "password")}
+            <Controller
+              control={signUpForm.control}
+              name="password"
+              render={({ field: { value, onChange }, fieldState: { error } }) => (
+                <FormInput
+                  label="Password"
+                  icon="lock-closed-outline"
+                  value={value}
+                  onChangeText={onChange}
+                  placeholder="Create a password (min. 8 characters)"
+                  secureTextEntry
+                  returnKeyType="done"
+                  textContentType="newPassword"
+                  onSubmitEditing={submitSignUp}
+                  error={error?.message}
+                />
+              )}
             />
             <PrimaryButton
               label="Create Account"
               icon="person-add-outline"
-              onPress={onSignUpPress}
-              loading={isLoading}
+              onPress={submitSignUp}
+              loading={signUpForm.formState.isSubmitting}
             />
           </View>
 

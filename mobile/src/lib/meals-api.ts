@@ -51,33 +51,33 @@ export async function pollAnalysisUntilDone(
   for (;;) {
     const token = await getToken();
     if (!token) {
-      throw new Error("AUTH_EXPIRED");
+      throw authExpired();
     }
 
     const res = await fetch(statusUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.status === 401) {
-      throw new Error("AUTH_EXPIRED");
+      throw authExpired();
     }
 
     let payload: unknown;
     try {
       payload = await res.json();
     } catch {
-      throw new Error(`Unexpected server response (${res.status}).`);
+      throw new UserFacingError(`Unexpected server response (${res.status}).`);
     }
 
     if (res.status === 404) {
-      throw new Error("Analysis not found on the server.");
+      throw new UserFacingError("Analysis not found on the server.");
     }
     if (!res.ok && res.status !== 422) {
-      throw new Error(`Analysis check failed (${res.status}).`);
+      throw new UserFacingError(`Analysis check failed (${res.status}).`);
     }
 
     const parsed = analysisStatusResponseSchema.safeParse(payload);
     if (!parsed.success) {
-      throw new Error("Unexpected server response.");
+      throw new UserFacingError("Unexpected server response.");
     }
 
     const status = parsed.data.status;
@@ -89,7 +89,7 @@ export async function pollAnalysisUntilDone(
     }
 
     if (Date.now() - startedAt > timeoutMs) {
-      throw new Error("Analysis is taking too long. Please try again.");
+      throw new UserFacingError("Analysis is taking too long. Please try again.");
     }
     await sleep(intervalMs);
   }
@@ -129,21 +129,21 @@ export async function fetchMealsPage(
 ): Promise<MealHistoryPage> {
   const token = await getToken();
   if (!token) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
 
   const res = await fetch(`${baseUrl}?page=${page}&limit=${MEALS_PAGE_LIMIT}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (res.status === 401) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
 
   let payload: unknown;
   try {
     payload = await res.json();
   } catch {
-    throw new Error(`Unexpected server response (${res.status}).`);
+    throw new UserFacingError(`Unexpected server response (${res.status}).`);
   }
 
   if (!res.ok) {
@@ -151,14 +151,14 @@ export async function fetchMealsPage(
       typeof payload === "object" && payload !== null && "error" in payload
         ? (payload as { error?: unknown }).error
         : undefined;
-    throw new Error(
+    throw new UserFacingError(
       typeof err === "string" && err !== "" ? err : `History request failed (${res.status}).`,
     );
   }
 
   const parsed = mealHistoryPageSchema.safeParse(payload);
   if (!parsed.success) {
-    throw new Error("Unexpected server response.");
+    throw new UserFacingError("Unexpected server response.");
   }
   return parsed.data;
 }
@@ -185,21 +185,21 @@ export async function fetchMealsStats(
 ): Promise<MealStats> {
   const token = await getToken();
   if (!token) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
 
   const res = await fetch(statsUrl, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (res.status === 401) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
 
   let payload: unknown;
   try {
     payload = await res.json();
   } catch {
-    throw new Error(`Unexpected server response (${res.status}).`);
+    throw new UserFacingError(`Unexpected server response (${res.status}).`);
   }
 
   if (!res.ok) {
@@ -207,14 +207,14 @@ export async function fetchMealsStats(
       typeof payload === "object" && payload !== null && "error" in payload
         ? (payload as { error?: unknown }).error
         : undefined;
-    throw new Error(
+    throw new UserFacingError(
       typeof err === "string" && err !== "" ? err : `Stats request failed (${res.status}).`,
     );
   }
 
   const parsed = mealStatsSchema.safeParse(payload);
   if (!parsed.success) {
-    throw new Error("Unexpected server response.");
+    throw new UserFacingError("Unexpected server response.");
   }
   return parsed.data;
 }
@@ -228,6 +228,23 @@ function errorMessageOf(payload: unknown, fallback: string): string {
 }
 
 /**
+ * Thrown for expected, user-facing failures (validation, 4xx, bad payloads,
+ * failed analyses). Callers display `message` and must NOT log these as
+ * errors — they are normal outcomes, not bugs.
+ */
+export class UserFacingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UserFacingError";
+  }
+}
+
+/** Control-flow signal for an expired Clerk session (caller signs out). */
+export function authExpired(): Error {
+  return new Error("AUTH_EXPIRED");
+}
+
+/**
  * Deletes one analysis (queued job, row, and private image).
  * Resolves on 204; throws `AUTH_EXPIRED` or a user-facing Error.
  */
@@ -238,7 +255,7 @@ export async function deleteMealAnalysis(
 ): Promise<void> {
   const token = await getToken();
   if (!token) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
 
   const res = await fetch(`${baseUrl}/${id}`, {
@@ -246,10 +263,10 @@ export async function deleteMealAnalysis(
     headers: { Authorization: `Bearer ${token}` },
   });
   if (res.status === 401) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
   if (res.status === 404) {
-    throw new Error("Analysis not found. It may already be deleted.");
+    throw new UserFacingError("Analysis not found. It may already be deleted.");
   }
   if (!res.ok) {
     let payload: unknown = null;
@@ -258,7 +275,7 @@ export async function deleteMealAnalysis(
     } catch {
       // Fall through to the generic message below.
     }
-    throw new Error(errorMessageOf(payload, `Delete failed (${res.status}).`));
+    throw new UserFacingError(errorMessageOf(payload, `Delete failed (${res.status}).`));
   }
 }
 
@@ -273,7 +290,7 @@ export async function deleteAccount(
 ): Promise<void> {
   const token = await getToken();
   if (!token) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
 
   const res = await fetch(`${apiBaseUrl}/account`, {
@@ -281,7 +298,7 @@ export async function deleteAccount(
     headers: { Authorization: `Bearer ${token}` },
   });
   if (res.status === 401) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
   if (!res.ok) {
     let payload: unknown = null;
@@ -290,6 +307,48 @@ export async function deleteAccount(
     } catch {
       // Fall through to the generic message below.
     }
-    throw new Error(errorMessageOf(payload, `Account deletion failed (${res.status}).`));
+    throw new UserFacingError(errorMessageOf(payload, `Account deletion failed (${res.status}).`));
   }
+}
+
+/**
+ * Fetches one analysis by id (detail screen). Throws `AUTH_EXPIRED` or a
+ * user-facing Error. Non-terminal states are returned, never thrown.
+ */
+export async function fetchMealAnalysis(
+  baseUrl: string,
+  id: string,
+  getToken: () => Promise<string | null>,
+): Promise<AnalysisStatusResponse> {
+  const token = await getToken();
+  if (!token) {
+    throw authExpired();
+  }
+
+  const res = await fetch(`${baseUrl}/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) {
+    throw authExpired();
+  }
+
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch {
+    throw new UserFacingError(`Unexpected server response (${res.status}).`);
+  }
+
+  if (res.status === 404) {
+    throw new UserFacingError("Analysis not found. It may have been deleted.");
+  }
+  if (!res.ok && res.status !== 422) {
+    throw new UserFacingError(errorMessageOf(payload, `Request failed (${res.status}).`));
+  }
+
+  const parsed = analysisStatusResponseSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new UserFacingError("Unexpected server response.");
+  }
+  return parsed.data;
 }

@@ -62,6 +62,14 @@ const config: ExpoConfig = {
     ],
     'expo-font',
     'expo-image',
+    [
+      'expo-image-picker',
+      {
+        photosPermission: 'Allow $(PRODUCT_NAME) to access your photos to analyze your meals.',
+        cameraPermission: 'Allow $(PRODUCT_NAME) to use your camera to snap meal photos.',
+        microphonePermission: false,
+      },
+    ],
     'expo-secure-store',
     'expo-web-browser',
   ],

@@ -1,7 +1,9 @@
 import { useSignIn } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
   Alert, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, TouchableOpacity, View,
@@ -10,6 +12,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import FormInput from "@/src/components/FormInput";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import { H1, Subtitle, BodySemibold, Caption } from "@/src/components/Typography";
+import {
+  forgotPasswordEmailSchema,
+  newPasswordSchema,
+  verificationCodeSchema,
+  type ForgotPasswordEmailInput,
+  type NewPasswordInput,
+  type VerificationCodeInput,
+} from "@/src/lib/validation";
 import { useTheme, radius } from "@/src/theme/index";
 
 type Step = "email" | "code" | "newPassword";
@@ -18,50 +28,52 @@ export default function ForgotPasswordScreen() {
   const { signIn } = useSignIn();
   const { colors, cardShadow } = useTheme();
   const [step, setStep] = useState<Step>("email");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const si = signIn as any;
 
-  const onSendCode = async () => {
-    if (!si || !email.trim()) {
-      Alert.alert("Error", "Please enter your email address"); return;
-    }
-    setIsLoading(true);
+  const emailForm = useForm<ForgotPasswordEmailInput>({
+    resolver: zodResolver(forgotPasswordEmailSchema),
+    defaultValues: { email: "" },
+  });
+
+  const codeForm = useForm<VerificationCodeInput>({
+    resolver: zodResolver(verificationCodeSchema),
+    defaultValues: { code: "" },
+  });
+
+  const passwordForm = useForm<NewPasswordInput>({
+    resolver: zodResolver(newPasswordSchema),
+    defaultValues: { newPassword: "" },
+  });
+
+  const onSendCode = async (data: ForgotPasswordEmailInput) => {
+    if (!si) return;
     try {
       // Step 1: Initialize the sign-in with the identifier, then send the code
-      await si.create({ identifier: email.trim() });
+      await si.create({ identifier: data.email });
       await si.resetPasswordEmailCode.sendCode();
       setStep("code");
     } catch (err: any) {
       Alert.alert("Error", err?.errors?.[0]?.message ?? "Failed to send code.");
-    } finally { setIsLoading(false); }
+    }
   };
 
-  const onVerifyCode = async () => {
-    if (!si || !code.trim() || code.trim().length !== 6) {
-      Alert.alert("Error", "Please enter the 6-digit code"); return;
-    }
-    setIsLoading(true);
+  const onVerifyCode = async (data: VerificationCodeInput) => {
+    if (!si) return;
     try {
       // Step 2: Verify the code — correct method per Clerk docs
-      await si.resetPasswordEmailCode.verifyCode({ code: code.trim() });
+      await si.resetPasswordEmailCode.verifyCode({ code: data.code });
       setStep("newPassword");
     } catch (err: any) {
       Alert.alert("Error", err?.errors?.[0]?.message ?? "Invalid code.");
-    } finally { setIsLoading(false); }
-  };
-const onSubmitNewPassword = async () => {
-    if (!si || !newPassword.trim() || newPassword.trim().length < 8) {
-      Alert.alert("Error", "Password must be at least 8 characters"); return;
     }
-    setIsLoading(true);
+  };
+const onSubmitNewPassword = async (data: NewPasswordInput) => {
+    if (!si) return;
     try {
       // Step 3: Submit new password — correct method per Clerk docs
-      await si.resetPasswordEmailCode.submitPassword({ password: newPassword.trim() });
+      await si.resetPasswordEmailCode.submitPassword({ password: data.newPassword });
       if (si.status === "complete") {
         await si.finalize();
         Alert.alert("Success", "Your password has been reset successfully.", [
@@ -70,17 +82,19 @@ const onSubmitNewPassword = async () => {
       }
     } catch (err: any) {
       Alert.alert("Error", err?.errors?.[0]?.message ?? "Failed to reset password.");
-    } finally { setIsLoading(false); }
+    }
   };
+
+  const submitEmail = () => void emailForm.handleSubmit(onSendCode)();
+  const submitCode = () => void codeForm.handleSubmit(onVerifyCode)();
+  const submitPassword = () => void passwordForm.handleSubmit(onSubmitNewPassword)();
 
   const onResendCode = async () => {
     if (!si) return;
-    setIsLoading(true);
     try {
       await si.resetPasswordEmailCode.sendCode();
       Alert.alert("Sent", "A new code has been sent to your email.");
     } catch { Alert.alert("Error", "Could not resend code."); }
-    finally { setIsLoading(false); }
   };
 const Brand = () => (
     <View style={styles.brand}>
@@ -105,10 +119,16 @@ const Brand = () => (
                 Enter your email and we will send you a reset code
               </Subtitle>
               <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
-                <FormInput label="Email address" icon="mail-outline" value={email} onChangeText={setEmail}
-                  placeholder="you@example.com" keyboardType="email-address" returnKeyType="done"
-                  textContentType="emailAddress" onSubmitEditing={onSendCode} />
-                <PrimaryButton label="Send Reset Code" icon="send-outline" onPress={onSendCode} loading={isLoading} />
+                <Controller
+                  control={emailForm.control}
+                  name="email"
+                  render={({ field: { value, onChange }, fieldState: { error } }) => (
+                    <FormInput label="Email address" icon="mail-outline" value={value} onChangeText={onChange}
+                      placeholder="you@example.com" keyboardType="email-address" returnKeyType="done"
+                      textContentType="emailAddress" onSubmitEditing={submitEmail} error={error?.message} />
+                  )}
+                />
+                <PrimaryButton label="Send Reset Code" icon="send-outline" onPress={submitEmail} loading={emailForm.formState.isSubmitting} />
               </View>
               <TouchableOpacity style={styles.footer} onPress={() => router.back()} activeOpacity={0.7}
                 accessibilityRole="button" accessibilityLabel="Back to sign in" hitSlop={8}>
@@ -124,15 +144,21 @@ const Brand = () => (
               <H1 align="center">Check your email</H1>
               <Subtitle align="center" style={styles.subtitle}>
                 Enter the 6-digit code sent to{"\n"}
-                <BodySemibold style={{ color: colors.textPrimary }}>{email}</BodySemibold>
+                <BodySemibold style={{ color: colors.textPrimary }}>{emailForm.getValues("email")}</BodySemibold>
               </Subtitle>
               <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
-                <FormInput label="Reset Code" icon="lock-closed-outline" value={code} onChangeText={setCode}
-                  placeholder="000000" keyboardType="number-pad" maxLength={6} centerText
-                  returnKeyType="done" onSubmitEditing={onVerifyCode} />
-                <PrimaryButton label="Verify Code" icon="checkmark-circle-outline" onPress={onVerifyCode} loading={isLoading} />
+                <Controller
+                  control={codeForm.control}
+                  name="code"
+                  render={({ field: { value, onChange }, fieldState: { error } }) => (
+                    <FormInput label="Reset Code" icon="lock-closed-outline" value={value} onChangeText={onChange}
+                      placeholder="000000" keyboardType="number-pad" maxLength={6} centerText
+                      returnKeyType="done" onSubmitEditing={submitCode} error={error?.message} />
+                  )}
+                />
+                <PrimaryButton label="Verify Code" icon="checkmark-circle-outline" onPress={submitCode} loading={codeForm.formState.isSubmitting} />
               </View>
-              <TouchableOpacity style={styles.footer} onPress={onResendCode} activeOpacity={0.7} disabled={isLoading}
+              <TouchableOpacity style={styles.footer} onPress={onResendCode} activeOpacity={0.7} disabled={codeForm.formState.isSubmitting}
                 accessibilityRole="button" accessibilityLabel="Resend code" hitSlop={8}>
                 <BodySemibold style={{ color: colors.primary }}>Resend code</BodySemibold>
               </TouchableOpacity>
@@ -151,10 +177,17 @@ const Brand = () => (
                 Choose a strong password for your account
               </Subtitle>
               <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
-                <FormInput label="New Password" icon="lock-closed-outline" value={newPassword}
-                  onChangeText={setNewPassword} placeholder="Min. 8 characters" secureTextEntry
-                  returnKeyType="done" textContentType="newPassword" onSubmitEditing={onSubmitNewPassword} />
-                <PrimaryButton label="Reset Password" icon="refresh-outline" onPress={onSubmitNewPassword} loading={isLoading} />
+                <Controller
+                  control={passwordForm.control}
+                  name="newPassword"
+                  render={({ field: { value, onChange }, fieldState: { error } }) => (
+                    <FormInput label="New Password" icon="lock-closed-outline" value={value}
+                      onChangeText={onChange} placeholder="Min. 8 characters" secureTextEntry
+                      returnKeyType="done" textContentType="newPassword" onSubmitEditing={submitPassword}
+                      error={error?.message} />
+                  )}
+                />
+                <PrimaryButton label="Reset Password" icon="refresh-outline" onPress={submitPassword} loading={passwordForm.formState.isSubmitting} />
               </View>
               <TouchableOpacity style={[styles.footer, { marginTop: 4 }]} onPress={() => setStep("code")} activeOpacity={0.7}>
                 <Caption dim>Go back</Caption>

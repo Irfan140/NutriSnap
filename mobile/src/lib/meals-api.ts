@@ -293,3 +293,45 @@ export async function deleteAccount(
     throw new Error(errorMessageOf(payload, `Account deletion failed (${res.status}).`));
   }
 }
+
+/**
+ * Fetches one analysis by id (detail screen). Throws `AUTH_EXPIRED` or a
+ * user-facing Error. Non-terminal states are returned, never thrown.
+ */
+export async function fetchMealAnalysis(
+  baseUrl: string,
+  id: string,
+  getToken: () => Promise<string | null>,
+): Promise<AnalysisStatusResponse> {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("AUTH_EXPIRED");
+  }
+
+  const res = await fetch(`${baseUrl}/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) {
+    throw new Error("AUTH_EXPIRED");
+  }
+
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch {
+    throw new Error(`Unexpected server response (${res.status}).`);
+  }
+
+  if (res.status === 404) {
+    throw new Error("Analysis not found. It may have been deleted.");
+  }
+  if (!res.ok && res.status !== 422) {
+    throw new Error(errorMessageOf(payload, `Request failed (${res.status}).`));
+  }
+
+  const parsed = analysisStatusResponseSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new Error("Unexpected server response.");
+  }
+  return parsed.data;
+}

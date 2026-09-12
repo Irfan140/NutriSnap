@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,15 +17,12 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import { H1, H3, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
-import { deleteAccount, fetchMealsStats, type MealStats } from "@/src/lib/meals-api";
+import { useDeleteAccount } from "@/src/hooks/useDeleteAccount";
+import { useMealStats } from "@/src/hooks/useMealStats";
+import { isAuthExpired } from "@/src/lib/query-client";
 import { healthScoreColor, useTheme, radius } from "@/src/theme/index";
 
-import { env } from "@/src/config/env";
-
 const SUPPORT_EMAIL = "irfanmehmud140@gmail.com";
-const SERVER_URL = env.EXPO_PUBLIC_SERVER_URL?.replace(/\/$/, "");
-const STATS_URL = SERVER_URL ? `${SERVER_URL}/api/aifood/stats` : undefined;
-const ACCOUNT_URL = SERVER_URL ? `${SERVER_URL}/api` : undefined;
 
 function formatDateTime(iso: string): string {
   const date = new Date(iso);
@@ -66,56 +63,27 @@ const Profile = () => {
   const { user } = useUser();
   const { colors, cardShadow } = useTheme();
   const insets = useSafeAreaInsets();
-  const [stats, setStats] = useState<MealStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const mountedRef = useRef(true);
+  const statsQuery = useMealStats();
+  const deleteAccountMutation = useDeleteAccount();
+  const stats = statsQuery.data ?? null;
 
-  // Same stability guard as history.tsx: Clerk callbacks change identity
-  // across renders, so read them through a ref inside the loader.
-  const authRef = useRef({ getToken, signOut });
-  authRef.current = { getToken, signOut };
-
+  const signOutRef = useRef(signOut);
+  signOutRef.current = signOut;
   useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const loadStats = useCallback(async (silent: boolean) => {
-    if (!STATS_URL || !mountedRef.current) {
-      if (mountedRef.current) {
-        setStatsLoading(false);
-      }
-      return;
+    if (statsQuery.error && isAuthExpired(statsQuery.error)) {
+      void signOutRef.current();
     }
-    if (!silent) {
-      setStatsLoading(true);
-    }
-    try {
-      const result = await fetchMealsStats(STATS_URL, authRef.current.getToken);
-      if (!mountedRef.current) return;
-      setStats(result);
-    } catch (err) {
-      if (!mountedRef.current) return;
-      if (err instanceof Error && err.message === "AUTH_EXPIRED") {
-        await authRef.current.signOut();
-        return;
-      }
-    } finally {
-      if (mountedRef.current) setStatsLoading(false);
-    }
-  }, []);
+  }, [statsQuery.error]);
 
-  useEffect(() => {
-    void loadStats(false);
-  }, [loadStats]);
+  // Refetch on every focus so stats reflect analyses finished elsewhere.
+  // The method is destructured so the callback can depend on a stable
+  // binding instead of the ever-changing query result object.
+  const { refetch: refetchStats } = statsQuery;
 
-  // Always refetch on focus so stats reflect analyses finished elsewhere.
   useFocusEffect(
     useCallback(() => {
-      void loadStats(true);
-    }, [loadStats]),
+      void refetchStats();
+    }, [refetchStats]),
   );
 
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
@@ -127,27 +95,20 @@ const Profile = () => {
     ]);
   };
 
-  const confirmDeleteAccount = useCallback(async () => {
-    if (!ACCOUNT_URL) {
-      Alert.alert("Error", "Server URL is missing. Cannot delete account right now.");
-      return;
-    }
-    try {
-      await deleteAccount(ACCOUNT_URL, authRef.current.getToken);
-    } catch (err) {
-      if (!mountedRef.current) return;
-      if (err instanceof Error && err.message === "AUTH_EXPIRED") {
-        // Session already invalid — fall through to local sign-out.
-      } else {
+  const confirmDeleteAccount = useCallback(() => {
+    deleteAccountMutation.mutate(getToken, {
+      onError: (err) => {
+        if (isAuthExpired(err)) {
+          void signOutRef.current();
+          return;
+        }
         Alert.alert(
           "Delete failed",
           err instanceof Error ? err.message : "Could not delete your account.",
         );
-        return;
-      }
-    }
-    await signOut();
-  }, [signOut]);
+      },
+    });
+  }, [getToken, deleteAccountMutation]);
 
   const handleDeleteAccount = () => {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -281,7 +242,7 @@ const Profile = () => {
         {/* Stats */}
         <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
           <H3 style={styles.sectionTitle}>Your stats</H3>
-          {statsLoading && !stats ? (
+          {statsQuery.isPending ? (
             <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
           ) : stats ? (
             <>
@@ -325,7 +286,7 @@ const Profile = () => {
             </>
           ) : (
             <TouchableOpacity
-              onPress={() => void loadStats(false)}
+              onPress={() => void statsQuery.refetch()}
               accessibilityRole="button"
               accessibilityLabel="Retry loading stats"
               hitSlop={4}

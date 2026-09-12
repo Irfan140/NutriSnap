@@ -13,7 +13,6 @@ on:
 
 env:
   IMAGE: irfan140/nutrisnap-server
-  VPS_DIR: /opt/apps/nutrisnap
 
 jobs:
   build-push:
@@ -60,9 +59,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-            cd "$VPS_DIR"
+            cd /opt/apps/nutrisnap
             docker compose -f docker-compose.prod.yml pull api worker migrate
             docker compose -f docker-compose.prod.yml up -d
             docker compose -f docker-compose.prod.yml ps
-        env:
-          VPS_DIR: ${{ env.VPS_DIR }}

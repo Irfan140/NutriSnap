@@ -1,0 +1,174 @@
+# NutriSnap production stack — mirrors the studybuddy VPS setup:
+# Postgres + Redis + the server image in three roles (api / worker /
+# one-shot migrate), all on the `nutrisnap-net` bridge; only `api` also
+# joins the external `caddy_network` so Caddy can reverse-proxy it.
+#
+# All config comes from server/.env.production (see server/.env.example):
+#   POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB  → consumed by postgres
+#   REDIS_PASSWORD (optional)                        → consumed by redis
+#   DATABASE_URL  → must point at the compose service, e.g.
+#                   postgresql://myuser:mypassword@postgres:5432/nutrisnap
+#   REDIS_URL     → e.g. redis://redis:6379
+#                   (or redis://:mypassword@redis:6379 when REDIS_PASSWORD is set)
+#
+# Image flow (CI/CD, see .github/workflows/docker-publish.yml):
+#   push to main → GitHub Actions builds + pushes irfan140/nutrisnap-server →
+#   VPS pulls and recreates. The `build:` block below is only for local
+#   prod-like builds; the VPS deploys with `pull` + `up -d` (no --build).
+#
+# Setup on the VPS (/opt/apps/nutrisnap):
+#   1. Create server/.env.production (chmod 600).
+#   2. First deploy: docker compose -f docker-compose.prod.yml pull && \
+#      docker compose -f docker-compose.prod.yml up -d
+#   3. Caddyfile: `nutrisnap-server.irfan.bond { reverse_proxy nutrisnap-server:3000 }`,
+#      then reload Caddy. curl https://nutrisnap-server.irfan.bond/health.
+
+name: nutrisnap-prod
+
+x-nutrisnap-server: &nutrisnap-server
+  build:
+    context: ./server
+    dockerfile: Dockerfile
+  image: irfan140/nutrisnap-server:latest
+  env_file:
+    - ./server/.env.production
+  environment:
+    NODE_ENV: production
+  networks:
+    - nutrisnap-net
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    container_name: nutrisnap-db
+    restart: unless-stopped
+
+    env_file:
+      - ./server/.env.production
+
+    command: >
+      postgres
+      -c shared_preload_libraries=vector
+      -c max_connections=100
+
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+    expose:
+      - "5432"
+
+    networks:
+      - nutrisnap-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER:-myuser}\" -d \"$${POSTGRES_DB:-nutrisnap}\""]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: nutrisnap-redis
+    restart: unless-stopped
+
+    env_file:
+      - ./server/.env.production
+
+    command: >
+      sh -c 'if [ -n "$${REDIS_PASSWORD}" ]; then
+        redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}" --maxmemory 256mb --maxmemory-policy allkeys-lru;
+      else
+        redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru;
+      fi'
+
+    volumes:
+      - redis_data:/data
+
+    expose:
+      - "6379"
+
+    networks:
+      - nutrisnap-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$${REDIS_PASSWORD}\" ]; then redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  migrate:
+    <<: *nutrisnap-server
+    container_name: nutrisnap-migrate
+    command: ["bunx", "--bun", "prisma", "migrate", "deploy", "--config", "prisma7.config.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *nutrisnap-server
+    container_name: nutrisnap-server
+    command: ["bun", "src/index.ts"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - nutrisnap-net
+      - caddy_network
+    healthcheck:
+      test: ["CMD", "bun", "-e", "const p = process.env.PORT ?? 3000; const r = await fetch('http://127.0.0.1:' + p + '/health'); if (!r.ok) process.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+    stop_grace_period: 15s
+
+  worker:
+    <<: *nutrisnap-server
+    container_name: nutrisnap-worker
+    command: ["bun", "src/workers/meal-analysis.workers.ts"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+    stop_grace_period: 15s
+
+networks:
+  nutrisnap-net:
+    driver: bridge
+
+  caddy_network:
+    external: true
+
+volumes:
+  postgres_data:
+    driver: local
+
+  redis_data:
+    driver: local

@@ -1,0 +1,84 @@
+name: Android Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Build profile"
+        required: true
+        type: choice
+        options:
+          - development
+          - preview
+          - production
+        default: development
+
+jobs:
+  build:
+    name: Build Android
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: "npm"
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
+
+      - name: Build Android locally
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ inputs.profile }} \
+            --local \
+            --non-interactive
+
+      - name: Upload APK
+        if: inputs.profile != 'production'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ inputs.profile }}
+          path: "mobile/build-*.apk"
+
+      - name: Upload AAB
+        if: inputs.profile == 'production'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-production
+          path: "mobile/build-*.aab"

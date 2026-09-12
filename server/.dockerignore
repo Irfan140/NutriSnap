@@ -1,0 +1,10 @@
+node_modules
+generated
+dist
+out
+coverage
+logs
+.env*
+!.env.example
+.git
+.cache

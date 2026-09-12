@@ -12,7 +12,7 @@ NutriSnap is a full-stack AI meal analyzer. Users authenticate (Clerk), pick a m
 |---------|------|---------|-------|
 | Mobile app | `mobile/` | Expo SDK 55 + React Native 0.83 + React 19 | `mobile/src/app/_layout.tsx` (expo-router) |
 | Backend API | `server/` | Bun + Express 4 | `server/src/index.ts` → `server/src/app.ts` (+ `server/src/workers/meal-analysis.workers.ts` for jobs) |
-| Static docs | `docs/` | HTML | Privacy / delete-account pages |
+| Marketing site + legal | `web/` | React 19 + TS + Vite 8 + Tailwind v4 | `web/src/main.tsx` → `web/src/App.tsx` (hash-routed: home / privacy / delete-account) |
 | Shared assets | `assets/` | PNG | `banner.png`, `architecture.png` (README) |
 
 High-level flow: `mobile` (Clerk token) → `POST /api/uploads/presign` (gets short-lived R2 PUT URL) → mobile uploads JPEG straight to private R2 → `POST /api/aifood` (`{imageKey}`, returns `202 {analysisId}`) → BullMQ worker downloads from R2 → LangChain `ChatOpenAI` → Zod validates model JSON → persists `MealAnalysis` row → mobile polls `GET /api/aifood/:id` until `SUCCEEDED` and renders the formatted `message` (` ```json ` block + Markdown).
@@ -60,7 +60,17 @@ NutriSnap/
 │   ├── prisma/             # schema.prisma (User, MealAnalysis) + migrations/
 │   ├── prisma7.config.ts   # Prisma 7 config (DATABASE_URL) — pass --config to CLI
 │   └── tsconfig.json       # Bundler, strict, noEmit, allowImportingTsExtensions
-├── docs/                   # Static HTML: delete-account/index.html, privacy/index.html
+├── web/                    # Marketing site + legal pages (Vite SPA, hash-routed)
+│   ├── src/
+│   │   ├── main.tsx        # Entry → App.tsx shell
+│   │   ├── App.tsx         # useSiteRoute shell: SiteHeader + page + SiteFooter
+│   │   ├── lib/            # site.ts (SITE constants), router.ts (hash router), utils.ts (cn)
+│   │   ├── components/     # SiteHeader, SiteFooter, LogoMark, GithubIcon, ui/ (shadcn-style Button/Card/Badge)
+│   │   ├── pages/          # home.tsx, privacy.tsx, delete-account.tsx
+│   │   └── index.css       # Tailwind v4 import + @theme font
+│   ├── index.html          # Title/meta/fonts entry
+│   ├── public/favicon.svg  # Leaf mark
+│   └── vite.config.ts      # react + tailwindcss plugins
 ├── assets/                 # Repo-level images for README/architecture
 ├── skills-lock.json        # Committed — pins agent skills versions
 └── .agents/                # Locally installed skills — ignored by Git (see .gitignore:1)
@@ -93,6 +103,15 @@ Path alias: `@/*` maps to repo root of `mobile/` per `mobile/tsconfig.json:5` (e
 - Env: `dotenv` 17
 - Lint: `eslint` 10 (`eslint.config.mjs`, flat) + `prettier` 3 (`.prettierrc`); scripts `lint`, `format`
 
+**Web (`web/package.json`)**
+- React 19.2.8 + TypeScript + Vite 8 (`vite.config.ts`: `@vitejs/plugin-react` + `@tailwindcss/vite`)
+- Styling: `tailwindcss` 4 (`src/index.css` is just `@import "tailwindcss"` + `@theme` font token; no tailwind.config)
+- shadcn-style UI: `class-variance-authority` (Button/Badge variants), `clsx` + `tailwind-merge` (`cn()` in `src/lib/utils.ts`), hand-rolled `ui/button.tsx`, `ui/card.tsx`, `ui/badge.tsx` — no `@/*` alias, use relative imports
+- Icons: `lucide-react` — has NO brand icons, use local `GithubIcon` component instead
+- Routing: tiny hash router in `src/lib/router.ts` (`useSiteRoute`/`routeHref`/`navigateToSection`; `#/`, `#/privacy`, `#/delete-account`, plus pathname fallback) — no react-router, works on any static host with zero rewrites
+- Lint: `oxlint` (`bun run lint`); typecheck via `tsc -b` (runs as part of `bun run build`)
+- Package manager: Bun (`bun.lock` committed)
+
 ## 4. Architecture
 
 ### Request flow
@@ -122,6 +141,9 @@ npm install
 # server (Bun) — from server/
 bun install
 # alternative if Bun unavailable: npm install
+
+# web (Vite site) — from web/
+bun install
 ```
 
 ### Run
@@ -138,6 +160,13 @@ bun --watch src/index.ts   # npm run dev
 bun src/index.ts           # npm run start (prod)
 bun --watch src/workers/meal-analysis.workers.ts  # npm run dev:worker (BullMQ, needs Redis up)
 # If Bun task runner not available, use npx bun or node with tsx equivalent
+
+# web — from web/
+bun run dev        # vite dev server with HMR
+bun run build      # tsc -b && vite build → dist/
+bun run preview    # serve dist/ locally
+# Deploy: upload dist/ to any static host. Routes are hash-based
+# (#/, #/privacy, #/delete-account) so no server rewrites are needed.
 ```
 
 Prisma (from `server/`, DB must be up — see root `docker-compose.yml`):
@@ -180,6 +209,10 @@ npm run typecheck   # tsc --noEmit
 npm run lint        # eslint src --max-warnings 0
 npm run format:check  # prettier --check
 # or: bun tsc --noEmit
+
+# web — from web/
+bun run build   # tsc -b && vite build (typecheck + bundle)
+bun run lint    # oxlint, must pass with zero warnings
 ```
 
 No test script exists in this repo (verified `mobile/package.json`, `server/package.json` — no jest/vitest). Do not assume tests.
@@ -194,6 +227,7 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 - **Logging** — Use `server/src/utils/logger.utils.ts` (pino). Request logger adds `userId` prop, auto-ignores `/health`, maps 5xx→error/4xx→warn. Never log `Authorization`/`Cookie` (redacted). Client uses `console.error`/`console.warn` only in `__DEV__` / catch blocks — and never for a `UserFacingError` (expected outcome already shown in UI).
 - **Naming** — Components `PascalCase` (`PrimaryButton.tsx`), hooks `useXxx`, route groups `(auth)`/`(app)`/`(tabs)`, Zod schemas `xxxSchema`, logger `logger`, env `env`.
 - **Styling** — Inline `StyleSheet.create` with theme tokens; never hardcode colors — use `useTheme().colors` + `radius`/`spacing` from `mobile/src/theme/index.tsx`. Dark/light variants required if adding UI.
+- **Web UI** — shadcn-style primitives only (`components/ui/button.tsx`, `ui/card.tsx`, `ui/badge.tsx` + `cn()`); emerald/slate Tailwind palette matching mobile theme (`primary #10B981`); icons from `lucide-react`, brand/store marks via local `GithubIcon`/`PlayStoreIcon`. Shared constants (URLs incl. `playStoreUrl`, email, dates) live in `web/src/lib/site.ts`. Navigate via `routeHref`/`navigateToSection` from `web/src/lib/router.ts` — never hardcode `#/...` hashes. Relative imports (no alias).
 - **Exports** — Prefer factory functions (`createAiController`, `createMealAnalysisModel`, `createAiService`) for testability/DI over singletons, except exported singleton `aiService` in `services/meal-analysis.services.ts:319` for wiring.
 
 ## 7. AI/Agent Development Rules
@@ -277,7 +311,7 @@ No test script exists in this repo (verified `mobile/package.json`, `server/pack
 - **Branching** — `main` and `dev` exist (`git branch -a` shows `remotes/origin/main`, `remotes/origin/dev`, `HEAD -> origin/main`; active local is `dev`). No branch convention documented beyond `dev` as integration branch (merges like `Merge pull request #24 from Irfan140/dev`). Prefer feature branches off `dev` unless instructed otherwise.
 - **Commit style** — Conventional-ish prefixes observed: `feat:`, `refactor:`, `chore:` with descriptive body (e.g., `chore: ignore installed agent skills`). Keep commits scoped.
 - **Status before commit** — Verify `git status` / `git diff --stat` — only stage intended files; never stage `.env.local`, `node_modules/`, `dist/`, `.expo/`.
-- **Ignored** — Root `.agents/`; mobile `node_modules/`, `.expo/`, `dist/`, `web-build/`, `expo-env.d.ts`, native keys (`*.jks`, `*.p8`, `*.mobileprovision`), `*.tsbuildinfo`, auto-generated `ios/`/`android/`; server `node_modules/`, `out/`, `dist/`, `coverage/`, `logs/`, dotenv locals, `.cache/`.
+- **Ignored** — Root `.agents/`; mobile `node_modules/`, `.expo/`, `dist/`, `web-build/`, `expo-env.d.ts`, native keys (`*.jks`, `*.p8`, `*.mobileprovision`), `*.tsbuildinfo`, auto-generated `ios/`/`android/`; server `node_modules/`, `out/`, `dist/`, `coverage/`, `logs/`, dotenv locals, `.cache/`; web `node_modules/`, `dist/` (see `web/.gitignore`).
 - **Generated** — Do not hand-edit `expo-env.d.ts`, `dist/`, `node_modules/` or commit them. `app.config.ts` is source of truth for `app.json`.
 
 ## 13. Verification Checklist
@@ -318,13 +352,13 @@ Run **only** checks that exist; skip absent ones (no tests).
   ```bash
   cd server && bunx --bun prisma migrate dev --name <name> --config prisma7.config.ts
   ```
-- [ ] **Mobile manual**
-  - Expo start loads without `Invalid environment configuration` error.
+- [ ] **Mobile manual**  - Expo start loads without `Invalid environment configuration` error.
   - Sign-in → Home → pick image → Analyze succeeds (or shows expected 401/422/429 modal).
   - History tab lists past analyses (thumbnail, score, date) → tap opens detail with full breakdown; pull-to-refresh + paging work.
   - Profile stats card shows totals, average score, streaks (zeros + hint when empty).
   - Meal detail delete removes the row (list refreshes on return); Profile danger zone deletes the account (double-confirm → sign-out).
   - Tab press triggers haptics, theme toggle persists via SecureStore.
+- [ ] **Web manual** — `bun run dev` loads without errors; home sections, `#/privacy`, and `#/delete-account` all render; header/footer nav works on mobile (hamburger) and desktop; `bun run build` + `bun run lint` pass clean.
 - [ ] **No secrets/ignored files staged** — `git status --ignored` shows `.env.local`/`.agents/` not staged.
 - [ ] **No `AGENTS.md` invented conventions** — every rule references an existing file/pattern.
 

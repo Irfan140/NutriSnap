@@ -3,9 +3,11 @@ import { FileSystemUploadType, uploadAsync } from "expo-file-system/legacy";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { prepareMealImage } from "@/src/lib/meal-image";
 import {
+  authExpired,
   enqueueAnalysisResponseSchema,
   pollAnalysisUntilDone,
   presignUploadResponseSchema,
+  UserFacingError,
 } from "@/src/lib/meals-api";
 import { apiErrorSchema } from "@/src/lib/nutrition";
 import { MEALS_URL, PRESIGN_URL } from "@/src/lib/server-url";
@@ -32,7 +34,7 @@ async function runAnalyzeFlow(
   getToken: () => Promise<string | null>,
 ): Promise<AnalyzeMealResult> {
   if (!PRESIGN_URL || !MEALS_URL) {
-    throw new Error(
+    throw new UserFacingError(
       "Server URL is missing. Set EXPO_PUBLIC_SERVER_URL in your environment and restart Expo.",
     );
   }
@@ -43,7 +45,7 @@ async function runAnalyzeFlow(
   // 2. Ask the server for a short-lived direct-upload URL.
   let token = await getToken();
   if (!token) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
   const presignRes = await fetch(PRESIGN_URL, {
     method: "POST",
@@ -54,18 +56,18 @@ async function runAnalyzeFlow(
     body: "{}",
   });
   if (presignRes.status === 401) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
   const presignPayload: unknown = await presignRes.json().catch(() => null);
   if (!presignRes.ok) {
     const parsedError = apiErrorSchema.safeParse(presignPayload);
-    throw new Error(
+    throw new UserFacingError(
       parsedError.success ? parsedError.data.error : "Could not prepare the photo upload.",
     );
   }
   const presign = presignUploadResponseSchema.safeParse(presignPayload);
   if (!presign.success) {
-    throw new Error("Could not prepare the photo upload. Please try again.");
+    throw new UserFacingError("Could not prepare the photo upload. Please try again.");
   }
 
   // 3. Upload the JPEG straight to private object storage.
@@ -75,13 +77,13 @@ async function runAnalyzeFlow(
     headers: { "Content-Type": "image/jpeg" },
   });
   if (upload.status !== 200) {
-    throw new Error("Photo upload failed. Please check your connection and try again.");
+    throw new UserFacingError("Photo upload failed. Please check your connection and try again.");
   }
 
   // 4. Enqueue the background analysis (202) and poll until it finishes.
   token = await getToken();
   if (!token) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
   const enqueueRes = await fetch(MEALS_URL, {
     method: "POST",
@@ -92,16 +94,16 @@ async function runAnalyzeFlow(
     body: JSON.stringify({ imageKey: presign.data.key }),
   });
   if (enqueueRes.status === 401) {
-    throw new Error("AUTH_EXPIRED");
+    throw authExpired();
   }
   const enqueuePayload: unknown = await enqueueRes.json().catch(() => null);
   if (!enqueueRes.ok && enqueueRes.status !== 202) {
     const parsedError = apiErrorSchema.safeParse(enqueuePayload);
-    throw new Error(parsedError.success ? parsedError.data.error : "Error analyzing image");
+    throw new UserFacingError(parsedError.success ? parsedError.data.error : "Error analyzing image");
   }
   const enqueued = enqueueAnalysisResponseSchema.safeParse(enqueuePayload);
   if (!enqueued.success) {
-    throw new Error("Error analyzing image. Please try again.");
+    throw new UserFacingError("Error analyzing image. Please try again.");
   }
 
   const final = await pollAnalysisUntilDone(
@@ -109,7 +111,7 @@ async function runAnalyzeFlow(
     getToken,
   );
   if (final.outcome === "failed") {
-    throw new Error(final.payload.error ?? "Analysis failed. Please try with a clearer food image.");
+    throw new UserFacingError(final.payload.error ?? "Analysis failed. Please try with a clearer food image.");
   }
   return { analysisId: enqueued.data.analysisId, message: final.payload.message ?? "" };
 }

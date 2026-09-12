@@ -34,6 +34,7 @@ import {
 } from "@/src/lib/nutrition";
 import { useTheme, radius } from "@/src/theme/index";
 import { useAnalyzeMeal } from "@/src/hooks/useAnalyzeMeal";
+import { UserFacingError } from "@/src/lib/meals-api";
 import { isAuthExpired } from "@/src/lib/query-client";
 
 const LOADING_MESSAGES = [
@@ -267,7 +268,11 @@ export default function HomeScreen() {
             void signOut();
             return;
           }
-          console.error(err);
+          // Expected, user-facing failures (bad photo, timeouts) are shown
+          // in the modal, not logged — only unexpected errors reach console.
+          if (!(err instanceof UserFacingError)) {
+            console.error(err);
+          }
           showFailure(err instanceof Error ? err.message : "Error analyzing image. Please try again.");
         },
       },

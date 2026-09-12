@@ -59,6 +59,8 @@ NutriSnap/
 │   │   └── utils/          # logger.utils.ts (pino), image.utils.ts (mime/base64 helpers)
 │   ├── prisma/             # schema.prisma (User, MealAnalysis) + migrations/
 │   ├── prisma7.config.ts   # Prisma 7 config (DATABASE_URL) — pass --config to CLI
+│   ├── Dockerfile          # Prod image (oven/bun:1-slim, prisma generate at build; CMD overridden per compose role)
+│   ├── .dockerignore       # Excludes node_modules/generated/.env*
 │   └── tsconfig.json       # Bundler, strict, noEmit, allowImportingTsExtensions
 ├── web/                    # Marketing site + legal pages (Vite SPA, hash-routed)
 │   ├── src/
@@ -72,6 +74,8 @@ NutriSnap/
 │   ├── public/favicon.svg  # Leaf mark
 │   └── vite.config.ts      # react + tailwindcss plugins
 ├── assets/                 # Repo-level images for README/architecture
+├── docker-compose.yml      # Dev: self-contained Postgres + Redis
+├── docker-compose.prod.yml # Prod (VPS): api + worker + one-shot migrate + Postgres/Redis, all in Docker (named volumes)
 ├── skills-lock.json        # Committed — pins agent skills versions
 └── .agents/                # Locally installed skills — ignored by Git (see .gitignore:1)
 ```
@@ -178,6 +182,28 @@ bunx --bun prisma generate --config prisma7.config.ts  # or: npm run prisma:gene
 ```
 
 Mobile requires env before start (see §10). Server reads `.env.development` (or `.env.production` when `NODE_ENV=production`) via `dotenv` in `server/src/config/env.config.ts:1`.
+
+### Deploy (Docker — server to VPS)
+
+CI/CD mirrors studybuddy: push to `main` (server paths) → `.github/workflows/docker-publish.yml` builds `server/Dockerfile`, pushes `irfan140/nutrisnap-server:latest` + `:sha-<short>` to Docker Hub → SSH deploy runs `pull` + `up -d` in `/opt/apps/nutrisnap` (no `--build`; `migrate` applies pending Prisma migrations before `api`/`worker` start). Required Actions secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`.
+
+VPS one-time setup (`/opt/apps/nutrisnap`, project `nutrisnap-prod`):
+
+```bash
+cp server/.env.example server/.env.production  # fill secrets, NODE_ENV=production
+# Point at the compose services (see .env.example "Production" block):
+# DATABASE_URL=postgresql://myuser:mypassword@postgres:5432/nutrisnap
+# REDIS_URL=redis://redis:6379 (or redis://:password@redis:6379 with REDIS_PASSWORD)
+# Optional REDIS_PASSWORD is consumed by the redis service (maxmemory 256mb, allkeys-lru).
+# Caddyfile: nutrisnap-server.irfan.bond { reverse_proxy nutrisnap-server:3000 }
+# (api joins external `caddy_network`; reload Caddy after editing)
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d  # migrate → api + worker
+curl https://nutrisnap-server.irfan.bond/health  # expect {"status":"ok"}
+docker compose -f docker-compose.prod.yml logs -f api worker
+```
+
+`server/Dockerfile` (`oven/bun:1-slim`, frozen install, `prisma generate` at build with a placeholder `DATABASE_URL`) is shared by all three roles. Data lives in `postgres_data`/`redis_data` volumes. Rollback: `up -d` pinned to the previous `:sha-*` tag.
 
 ### Build / Deploy (EAS)
 
@@ -351,6 +377,11 @@ Run **only** checks that exist; skip absent ones (no tests).
 - [ ] **Migration check** (if touching `prisma/schema.prisma`)
   ```bash
   cd server && bunx --bun prisma migrate dev --name <name> --config prisma7.config.ts
+  ```
+- [ ] **Docker prod** (if touching `server/Dockerfile` / `docker-compose.prod.yml`)
+  ```bash
+  docker build -t nutrisnap-server:verify -f server/Dockerfile server/
+  docker compose -f docker-compose.prod.yml config  # needs server/.env.production present
   ```
 - [ ] **Mobile manual**  - Expo start loads without `Invalid environment configuration` error.
   - Sign-in → Home → pick image → Analyze succeeds (or shows expected 401/422/429 modal).

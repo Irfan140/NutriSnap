@@ -62,6 +62,9 @@ jobs:
           packager: npm
 
       - name: Build Android locally
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8 -Dorg.gradle.parallel=true -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
+          JAVA_OPTS: "-Xmx4g -XX:MaxMetaspaceSize=1g"
         run: |
           eas build \
             --platform android \

@@ -24,7 +24,6 @@
     "@aws-sdk/s3-request-presigner": "^3.1130.0",
     "@better-auth/expo": "^1.7.11",
     "@better-auth/prisma-adapter": "^1.7.11",
-    "@clerk/express": "^2.1.56",
     "@langchain/core": "^1.2.10",
     "@langchain/openai": "^1.5.12",
     "@prisma/adapter-pg": "^7.10.0",
@@ -39,7 +38,6 @@
     "pg": "^8.23.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
-    "svix": "^2.4.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

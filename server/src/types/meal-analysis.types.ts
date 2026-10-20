@@ -1,9 +1,4 @@
-import type {
-  MealAnalysis,
-  MealAnalysisStatus,
-  Prisma,
-  User,
-} from "../../generated/prisma/client.js";
+import type { MealAnalysis, MealAnalysisStatus, Prisma } from "../../generated/prisma/client.js";
 import type { FoodAnalysis } from "./nutrition.types.js";
 
 export type { FoodAnalysis } from "./nutrition.types.js";
@@ -71,7 +66,6 @@ export type AiService = {
 };
 
 export type MealAnalysisDeps = {
-  readonly ensureUser: (clerkId: string) => Promise<User>;
   readonly createQueuedAnalysis: (
     userId: string,
     r2Key: string,

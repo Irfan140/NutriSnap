@@ -1,4 +1,3 @@
-import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -35,6 +34,7 @@ import {
 import { useTheme, radius } from "@/src/theme/index";
 import { useAnalyzeMeal } from "@/src/hooks/useAnalyzeMeal";
 import { UserFacingError } from "@/src/lib/meals-api";
+import { authClient } from "@/src/lib/auth";
 import { isAuthExpired } from "@/src/lib/query-client";
 
 const LOADING_MESSAGES = [
@@ -75,7 +75,6 @@ function HowToStep({ colors, icon, tint, title, description, isLast = false }: H
 }
 
 export default function HomeScreen() {
-  const { signOut } = useAuth();
   const { colors, cardShadow, buttonShadow, isDark, setThemeMode } = useTheme();
   const insets = useSafeAreaInsets();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -265,7 +264,7 @@ export default function HomeScreen() {
           if (attemptRef.current !== attempt) return;
           if (isAuthExpired(err)) {
             showFailure("Your session has expired. Please sign in again.");
-            void signOut();
+            void authClient.signOut();
             return;
           }
           // Expected, user-facing failures (bad photo, timeouts) are shown

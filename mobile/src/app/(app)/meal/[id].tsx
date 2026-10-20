@@ -1,4 +1,3 @@
-import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
@@ -14,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import MealResultCard from "@/src/components/MealResultCard";
 import { Body, BodySemibold, H3 } from "@/src/components/Typography";
+import { authClient } from "@/src/lib/auth";
 import { useDeleteMeal } from "@/src/hooks/useDeleteMeal";
 import { useMealDetail } from "@/src/hooks/useMealDetail";
 import { parseResultMessage } from "@/src/lib/nutrition";
@@ -87,7 +87,6 @@ function DeleteAnalysisButton({
 
 export default function MealDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getToken, signOut } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [imgHidden, setImgHidden] = useState(false);
@@ -95,8 +94,8 @@ export default function MealDetailScreen() {
   const detail = useMealDetail(validId);
   const deleteMeal = useDeleteMeal();
 
-  const signOutRef = useRef(signOut);
-  signOutRef.current = signOut;
+  const signOutRef = useRef(() => authClient.signOut());
+  signOutRef.current = () => authClient.signOut();
   useEffect(() => {
     if (detail.error && isAuthExpired(detail.error)) {
       void signOutRef.current();
@@ -115,7 +114,7 @@ export default function MealDetailScreen() {
           style: "destructive",
           onPress: () =>
             deleteMeal.mutate(
-              { id: validId, getToken },
+              { id: validId },
               {
                 onSuccess: () => router.back(),
                 onError: (err) => {
@@ -133,7 +132,7 @@ export default function MealDetailScreen() {
         },
       ],
     );
-  }, [validId, getToken, deleteMeal]);
+  }, [validId, deleteMeal]);
 
   const { refetch: refetchDetail } = detail;
 

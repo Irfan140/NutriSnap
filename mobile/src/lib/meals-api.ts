@@ -239,7 +239,7 @@ export class UserFacingError extends Error {
   }
 }
 
-/** Control-flow signal for an expired Clerk session (caller signs out). */
+/** Control-flow signal for an expired session (caller signs out). */
 export function authExpired(): Error {
   return new Error("AUTH_EXPIRED");
 }
@@ -281,8 +281,7 @@ export async function deleteMealAnalysis(
 
 /**
  * Erases the whole account (meals, photos, profile). Resolves on 204;
- * throws `AUTH_EXPIRED` or a user-facing Error (including the server's
- * needs-support message when data is gone but Clerk removal failed).
+ * throws `AUTH_EXPIRED` or a user-facing Error.
  */
 export async function deleteAccount(
   apiBaseUrl: string,

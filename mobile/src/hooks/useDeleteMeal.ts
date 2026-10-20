@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getSessionToken } from "@/src/lib/auth";
 import { deleteMealAnalysis } from "@/src/lib/meals-api";
 import { MEALS_URL } from "@/src/lib/server-url";
 
@@ -13,11 +14,11 @@ function missingServerUrl(): Error {
 export function useDeleteMeal() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, getToken }: { id: string; getToken: () => Promise<string | null> }) => {
+    mutationFn: ({ id }: { id: string }) => {
       if (!MEALS_URL) {
         throw missingServerUrl();
       }
-      return deleteMealAnalysis(MEALS_URL, id, getToken);
+      return deleteMealAnalysis(MEALS_URL, id, getSessionToken);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["meals"] });

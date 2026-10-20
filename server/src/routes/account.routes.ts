@@ -7,7 +7,7 @@ import { createAccountController } from "../controllers/account.controllers.js";
 const router = Router();
 const accountController = createAccountController();
 
-// Self-serve full erasure (jobs + R2 objects + rows + Clerk user).
+// Self-serve full erasure (jobs + R2 objects + rows + user profile).
 router.delete(
   "/account",
   requireAuth,

@@ -1,5 +1,4 @@
-﻿import { useAuth, useUser } from "@clerk/expo";
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
@@ -17,6 +16,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import PrimaryButton from "@/src/components/PrimaryButton";
 import { H1, H3, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
+import { authClient } from "@/src/lib/auth";
 import { useDeleteAccount } from "@/src/hooks/useDeleteAccount";
 import { useMealStats } from "@/src/hooks/useMealStats";
 import { isAuthExpired } from "@/src/lib/query-client";
@@ -59,19 +59,24 @@ function StatTile({ icon, tint, label, value }: StatTileProps) {
 }
 
 const Profile = () => {
-  const { getToken, signOut } = useAuth();
-  const { user } = useUser();
+  const { data: session } = authClient.useSession();
+  const user = session?.user;
   const { colors, cardShadow } = useTheme();
   const insets = useSafeAreaInsets();
   const statsQuery = useMealStats();
   const deleteAccountMutation = useDeleteAccount();
   const stats = statsQuery.data ?? null;
 
+  // authClient methods are stable, but the ref keeps the established
+  // sign-out pattern used by hooks that surface AUTH_EXPIRED.
+  const signOut = useCallback(() => {
+    void authClient.signOut();
+  }, []);
   const signOutRef = useRef(signOut);
   signOutRef.current = signOut;
   useEffect(() => {
     if (statsQuery.error && isAuthExpired(statsQuery.error)) {
-      void signOutRef.current();
+      signOutRef.current();
     }
   }, [statsQuery.error]);
 
@@ -96,10 +101,10 @@ const Profile = () => {
   };
 
   const confirmDeleteAccount = useCallback(() => {
-    deleteAccountMutation.mutate(getToken, {
+    deleteAccountMutation.mutate(undefined, {
       onError: (err) => {
         if (isAuthExpired(err)) {
-          void signOutRef.current();
+          signOutRef.current();
           return;
         }
         Alert.alert(
@@ -108,7 +113,7 @@ const Profile = () => {
         );
       },
     });
-  }, [getToken, deleteAccountMutation]);
+  }, [deleteAccountMutation]);
 
   const handleDeleteAccount = () => {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -168,9 +173,9 @@ const Profile = () => {
     );
   }, [appVersion, openSupportEmail]);
 
-  const avatarUri = user?.imageUrl ?? null;
-  const displayName = user?.fullName ?? user?.firstName ?? "NutriSnap User";
-  const email = user?.primaryEmailAddress?.emailAddress ?? "No email available";
+  const avatarUri = user?.image ?? null;
+  const displayName = user?.name ?? "NutriSnap User";
+  const email = user?.email ?? "No email available";
 
   const memberSince = (() => {
     if (!user?.createdAt) return null;
@@ -180,7 +185,7 @@ const Profile = () => {
   })();
 
   const initials = (() => {
-    const source = user?.fullName ?? user?.firstName ?? email;
+    const source = user?.name ?? email;
     const letters = source
       .split(" ")
       .map((part) => part.charAt(0))

@@ -1,10 +1,12 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: z
-    .string()
-    .trim()
-    .min(1, "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required"),
+  // Native Google Sign-In (WEB OAuth client ID). The ID token minted by the
+  // native SDK is verified server-side against GOOGLE_CLIENT_ID.
+  EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: z.string().trim().optional(),
+  // Android OAuth client (package name + SHA-1 registered in Google Cloud).
+  // Android resolves it implicitly; kept here per app configuration.
+  EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: z.string().trim().optional(),
   EXPO_PUBLIC_SERVER_URL: z
     .string()
     .trim()
@@ -13,8 +15,10 @@ const envSchema = z.object({
 });
 
 const parsed = envSchema.safeParse({
-  EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY:
-    process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
+  EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID:
+    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID:
+    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
   EXPO_PUBLIC_SERVER_URL: process.env.EXPO_PUBLIC_SERVER_URL,
 });
 

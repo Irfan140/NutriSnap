@@ -1,6 +1,6 @@
-import { useAuth } from "@clerk/expo";
 import { FileSystemUploadType, uploadAsync } from "expo-file-system/legacy";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getSessionToken } from "@/src/lib/auth";
 import { prepareMealImage } from "@/src/lib/meal-image";
 import {
   authExpired,
@@ -117,10 +117,9 @@ async function runAnalyzeFlow(
 }
 
 export function useAnalyzeMeal() {
-  const { getToken } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: AnalyzeMealInput) => runAnalyzeFlow(input, getToken),
+    mutationFn: (input: AnalyzeMealInput) => runAnalyzeFlow(input, getSessionToken),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["meals"] });
       void queryClient.invalidateQueries({ queryKey: ["meal-stats"] });

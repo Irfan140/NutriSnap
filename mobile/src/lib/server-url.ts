@@ -6,3 +6,4 @@ export const MEALS_URL = SERVER_URL ? `${SERVER_URL}/api/aifood` : undefined;
 export const PRESIGN_URL = SERVER_URL ? `${SERVER_URL}/api/uploads/presign` : undefined;
 export const STATS_URL = SERVER_URL ? `${SERVER_URL}/api/aifood/stats` : undefined;
 export const ACCOUNT_URL = SERVER_URL ? `${SERVER_URL}/api/account` : undefined;
+export const AUTH_URL = SERVER_URL ? `${SERVER_URL}/api/auth` : undefined;

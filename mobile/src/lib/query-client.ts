@@ -18,7 +18,7 @@ export const queryClient = new QueryClient({
   },
 });
 
-/** True when a fetcher failed only because the Clerk session expired. */
+/** True when a fetcher failed only because the session expired. */
 export function isAuthExpired(error: unknown): boolean {
   return error instanceof Error && error.message === "AUTH_EXPIRED";
 }

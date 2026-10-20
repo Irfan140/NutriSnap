@@ -1,11 +1,9 @@
-import { useSSO } from "@clerk/expo";
-import React, { useCallback, useState } from "react";
-import { Alert, StyleSheet, TouchableOpacity } from "react-native";
+import React from "react";
+import { ActivityIndicator, StyleSheet, TouchableOpacity } from "react-native";
 import { Path, Svg } from "react-native-svg";
 import { useTheme, radius } from "@/src/theme/index";
 import { BodySemibold } from "@/src/components/Typography";
 
-// Google Logo Component
 const GoogleIcon = () => (
   <Svg width="20" height="20" viewBox="0 0 24 24">
     <Path
@@ -27,54 +25,41 @@ const GoogleIcon = () => (
   </Svg>
 );
 
-export default function GoogleSignIn() {
-  const { startSSOFlow } = useSSO();
+interface GoogleSignInButtonProps {
+  onPress: () => void;
+  loading: boolean;
+}
+
+/** Presentational Google sign-in button (icon, loading state, a11y). */
+export default function GoogleSignInButton({
+  onPress,
+  loading,
+}: GoogleSignInButtonProps) {
   const { colors, cardShadow } = useTheme();
-  const [isLoading, setIsLoading] = useState(false);
-
-  const onPress = useCallback(async () => {
-    if (isLoading) return;
-    setIsLoading(true);
-    try {
-      const { createdSessionId, setActive, signUp } = await startSSOFlow({
-        strategy: "oauth_google",
-      });
-
-      if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId });
-      } else if (!createdSessionId && signUp?.status === "missing_requirements") {
-        Alert.alert(
-          "Additional Info Required",
-          "Please sign up with email to complete the required fields"
-        );
-      }
-    } catch (err) {
-      console.error(JSON.stringify(err, null, 2));
-      Alert.alert("Sign In Failed", "Could not sign in with Google");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [startSSOFlow, isLoading]);
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      disabled={isLoading}
+      disabled={loading}
       activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel="Sign in with Google"
-      accessibilityState={{ disabled: isLoading, busy: isLoading }}
+      accessibilityState={{ disabled: loading, busy: loading }}
       style={[
         styles.button,
         {
           backgroundColor: colors.surface,
           borderColor: colors.border,
-          opacity: isLoading ? 0.6 : 1,
+          opacity: loading ? 0.6 : 1,
         },
         cardShadow,
       ]}
     >
-      <GoogleIcon />
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.primary} />
+      ) : (
+        <GoogleIcon />
+      )}
       <BodySemibold style={styles.label}>Sign in with Google</BodySemibold>
     </TouchableOpacity>
   );

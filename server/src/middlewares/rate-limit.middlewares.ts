@@ -5,7 +5,7 @@ const MAX_REQUESTS = 20;
 
 /**
  * Rate limiter for the AI analysis endpoint. Requests are keyed by the
- * authenticated Clerk user id when available, falling back to the client IP
+ * authenticated Better Auth user id when available, falling back to the client IP
  * address otherwise.
  */
 export const analyzeMealRateLimiter = rateLimit({

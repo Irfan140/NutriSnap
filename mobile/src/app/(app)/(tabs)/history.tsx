@@ -1,4 +1,3 @@
-import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Body, BodySemibold, Caption, H1, H3 } from "@/src/components/Typography";
+import { authClient } from "@/src/lib/auth";
 import { useMealHistory } from "@/src/hooks/useMealHistory";
 import type { MealHistoryItem } from "@/src/lib/meals-api";
 import { isAuthExpired } from "@/src/lib/query-client";
@@ -92,16 +92,16 @@ function HistoryRow({ item, onPress }: { item: MealHistoryItem; onPress: () => v
 }
 
 export default function HistoryScreen() {
-  const { signOut } = useAuth();
   const { colors, cardShadow } = useTheme();
   const insets = useSafeAreaInsets();
   const history = useMealHistory();
   const items = history.data?.pages.flatMap((page) => page.items) ?? [];
 
   // Session expiry signs out (the auth gate redirects); other errors render
-  // inline below. signOut identity is unstable, so it stays out of dep arrays.
-  const signOutRef = useRef(signOut);
-  signOutRef.current = signOut;
+  // inline below. The sign-out callback is stable, so it stays formal in refs
+  // rather than deep dep arrays.
+  const signOutRef = useRef(() => authClient.signOut());
+  signOutRef.current = () => authClient.signOut();
   useEffect(() => {
     if (history.error && isAuthExpired(history.error)) {
       void signOutRef.current();

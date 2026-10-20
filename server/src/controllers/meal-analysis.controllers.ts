@@ -24,7 +24,6 @@ import {
   listMealsQuerySchema,
   mealAnalysisParamsSchema,
 } from "../schemas/meal.schemas.js";
-import { ensureUser } from "../services/clerk-sync.services.js";
 import { logger } from "../utils/logger.utils.js";
 import type {
   AnalyzeMealResponse,
@@ -73,7 +72,6 @@ type MealsStatsResponseBody =
   | ErrorResponse;
 
 const defaultDeps: MealAnalysisDeps = {
-  ensureUser,
   createQueuedAnalysis,
   findUserAnalysis,
   listUserAnalyses,
@@ -97,8 +95,8 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
     req,
     res,
   ): Promise<void> => {
-    const clerkId = req.auth?.userId;
-    if (!clerkId) {
+    const userId = req.auth?.userId;
+    if (!userId) {
       const { status, body } = unauthorized();
       res.status(status).json(body);
       return;
@@ -108,8 +106,7 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
       return;
     }
 
-    const user = await deps.ensureUser(clerkId);
-    const key = buildMealImageKey(user.id);
+    const key = buildMealImageKey(userId);
     const { uploadUrl, expiresInSec } = await createUploadUrl(key);
     res.status(200).json({ key, uploadUrl, expiresInSec });
   };
@@ -131,8 +128,8 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
       return;
     }
 
-    const clerkId = req.auth?.userId;
-    if (!clerkId) {
+    const userId = req.auth?.userId;
+    if (!userId) {
       const { status, body } = unauthorized();
       res.status(status).json(body);
       return;
@@ -142,9 +139,8 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
       return;
     }
 
-    const user = await deps.ensureUser(clerkId);
     const imageKey = parsedBody.data.imageKey;
-    if (!isUserImageKey(imageKey, user.id)) {
+    if (!isUserImageKey(imageKey, userId)) {
       res.status(422).json({ error: "Invalid image key. Please upload the photo first." });
       return;
     }
@@ -161,7 +157,7 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
       return;
     }
 
-    const row = await deps.createQueuedAnalysis(user.id, imageKey, env.OPENAI_VISION_MODEL);
+    const row = await deps.createQueuedAnalysis(userId, imageKey, env.OPENAI_VISION_MODEL);
     await deps.enqueueMealAnalysis({ analysisId: row.id, r2Key: imageKey });
     res.status(202).json({ analysisId: row.id, status: row.status });
   };
@@ -177,15 +173,14 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
       return;
     }
 
-    const clerkId = req.auth?.userId;
-    if (!clerkId) {
+    const userId = req.auth?.userId;
+    if (!userId) {
       const { status, body } = unauthorized();
       res.status(status).json(body);
       return;
     }
 
-    const user = await deps.ensureUser(clerkId);
-    const row = await deps.findUserAnalysis(parsedParams.data.id, user.id);
+    const row = await deps.findUserAnalysis(parsedParams.data.id, userId);
     if (!row) {
       res.status(404).json({ error: "Analysis not found." });
       return;
@@ -234,16 +229,15 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
       return;
     }
 
-    const clerkId = req.auth?.userId;
-    if (!clerkId) {
+    const userId = req.auth?.userId;
+    if (!userId) {
       const { status, body } = unauthorized();
       res.status(status).json(body);
       return;
     }
 
-    const user = await deps.ensureUser(clerkId);
     const { page, limit } = parsedQuery.data;
-    const { items, total } = await deps.listUserAnalyses(user.id, page, limit);
+    const { items, total } = await deps.listUserAnalyses(userId, page, limit);
 
     const results = await Promise.all(
       items.map(async (item): Promise<MealHistoryItemBody> => {
@@ -276,15 +270,14 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
     req,
     res,
   ): Promise<void> => {
-    const clerkId = req.auth?.userId;
-    if (!clerkId) {
+    const userId = req.auth?.userId;
+    if (!userId) {
       const { status, body } = unauthorized();
       res.status(status).json(body);
       return;
     }
 
-    const user = await deps.ensureUser(clerkId);
-    const stats = await deps.getUserMealStats(user.id);
+    const stats = await deps.getUserMealStats(userId);
     res.status(200).json({
       ...stats,
       lastAnalyzedAt: stats.lastAnalyzedAt?.toISOString() ?? null,
@@ -302,15 +295,14 @@ export function createAiController(deps: MealAnalysisDeps = defaultDeps) {
       return;
     }
 
-    const clerkId = req.auth?.userId;
-    if (!clerkId) {
+    const userId = req.auth?.userId;
+    if (!userId) {
       const { status, body } = unauthorized();
       res.status(status).json(body);
       return;
     }
 
-    const user = await deps.ensureUser(clerkId);
-    const row = await deps.findUserAnalysis(parsedParams.data.id, user.id);
+    const row = await deps.findUserAnalysis(parsedParams.data.id, userId);
     if (!row) {
       res.status(404).json({ error: "Analysis not found." });
       return;

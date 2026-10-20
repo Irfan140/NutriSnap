@@ -21,6 +21,44 @@ const variants: Record<Variant, { name: string; androidPackage: string }> = {
 
 const v = variants[variant];
 
+const plugins: ExpoConfig['plugins'] = [
+  'expo-router',
+  [
+    'expo-splash-screen',
+    {
+      image: './assets/images/splash-icon.png',
+      imageWidth: 200,
+      resizeMode: 'contain',
+      backgroundColor: '#ffffff',
+      dark: {
+        backgroundColor: '#000000',
+      },
+    },
+  ],
+  'expo-font',
+  'expo-image',
+  [
+    'expo-image-picker',
+    {
+      photosPermission: 'Allow $(PRODUCT_NAME) to access your photos to analyze your meals.',
+      cameraPermission: 'Allow $(PRODUCT_NAME) to use your camera to snap meal photos.',
+      microphonePermission: false,
+    },
+  ],
+  'expo-secure-store',
+];
+
+// Google Sign-In plugin only applies when an iOS URL scheme is provided
+// (build-time; the Android flow needs no native config). See .env.example.
+if (process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME) {
+  plugins.push([
+    '@react-native-google-signin/google-signin',
+    {
+      iosUrlScheme: process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME,
+    },
+  ]);
+}
+
 const config: ExpoConfig = {
   name: v.name,
   slug: 'nutrisnap',
@@ -46,33 +84,7 @@ const config: ExpoConfig = {
     output: 'static',
     favicon: './assets/images/favicon.png',
   },
-  plugins: [
-    'expo-router',
-    [
-      'expo-splash-screen',
-      {
-        image: './assets/images/splash-icon.png',
-        imageWidth: 200,
-        resizeMode: 'contain',
-        backgroundColor: '#ffffff',
-        dark: {
-          backgroundColor: '#000000',
-        },
-      },
-    ],
-    'expo-font',
-    'expo-image',
-    [
-      'expo-image-picker',
-      {
-        photosPermission: 'Allow $(PRODUCT_NAME) to access your photos to analyze your meals.',
-        cameraPermission: 'Allow $(PRODUCT_NAME) to use your camera to snap meal photos.',
-        microphonePermission: false,
-      },
-    ],
-    'expo-secure-store',
-    'expo-web-browser',
-  ],
+  plugins,
   experiments: {
     typedRoutes: true,
     reactCompiler: true,

@@ -16,9 +16,19 @@ const envSchema = z.object({
   AI_MODEL_PROVIDER: z.string().trim().min(1).default("openai"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
-  CLERK_SECRET_KEY: z.string().trim().min(1, "CLERK_SECRET_KEY is required"),
-  CLERK_PUBLISHABLE_KEY: z.string().trim().min(1, "CLERK_PUBLISHABLE_KEY is required"),
-  CLERK_WEBHOOK_SECRET: z.string().trim().min(1).optional(),
+  // Better Auth secrets must be high-entropy; Better Auth itself requires
+  // at least 32 characters for its signing/encryption key material.
+  BETTER_AUTH_SECRET: z
+    .string()
+    .trim()
+    .min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),
+  // Public origin of the API (e.g. https://nutrisnap-server.irfan.bond);
+  // falls back to http://localhost:<PORT> when unset.
+  BETTER_AUTH_URL: z.string().trim().url().optional(),
+  // Google OAuth "Web application" client. Optional so the server still
+  // boots for CI/smoke without them; auth sign-in routes error until set.
+  GOOGLE_CLIENT_ID: z.string().trim().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().trim().min(1).optional(),
   DATABASE_URL: z.string().trim().min(1, "DATABASE_URL is required"),
   REDIS_URL: z.string().trim().min(1).default("redis://localhost:6379"),
   R2_ACCOUNT_ID: z.string().trim().min(1).optional(),

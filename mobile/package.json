@@ -19,7 +19,8 @@
     "update:prod": "eas update --channel production  --environment production",
     "update:preview": "eas update --channel preview  --environment preview",
     "submit:prod": "eas submit --profile production --platform android",
-    "check": "npm run typecheck && npm run lint && npm run doctor"
+    "check": "npm run typecheck && npm run lint && npm run doctor",
+    "eas:credentials": "eas credentials -p android"
   },
   "dependencies": {
     "@better-auth/expo": "^1.7.11",

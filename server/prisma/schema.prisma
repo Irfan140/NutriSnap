@@ -8,20 +8,25 @@ datasource db {
   provider = "postgresql"
 }
 
-// Mirror of the Clerk user. Clerk remains the source of truth for identity;
-// this table exists so meal analyses and jobs can reference a local owner.
-// Kept in sync via the Clerk Svix webhook (user.created/updated/deleted)
-// with lazy ensure on first authenticated API call as a backstop.
-model User {
-  id        String   @id @default(uuid())
-  clerkId   String   @unique
-  email     String?
-  name      String?
-  imageUrl  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// Better Auth owns identity. Tables `user` / `session` / `account` /
+// `verification` (generated from `npx auth@latest generate`) are written by
+// the Better Auth instance in `src/lib/auth.lib.ts`; Google sign-in is the
+// only auth method, so the first sign-in creates the user/account rows.
 
-  meals MealAnalysis[]
+model User {
+  id            String    @id
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  name          String
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions Session[]
+  accounts Account[]
+  meals    MealAnalysis[]
+
+  @@map("user")
 }
 
 enum MealAnalysisStatus {
@@ -33,29 +38,78 @@ enum MealAnalysisStatus {
 
 // One row per requested meal analysis. Acts as the durable job record that
 // the mobile client polls (GET /api/aifood/:id) and as the history entry.
+
 model MealAnalysis {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  r2Key       String
-  status      MealAnalysisStatus @default(QUEUED)
-  nutrition   Json?
-  healthScore Int?
-  healthAdvice String[] @default([])
-  alternativeSuggestions String[] @default([])
-  summary     String?
+  id                     String             @id @default(uuid())
+  userId                 String
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  r2Key                  String
+  status                 MealAnalysisStatus @default(QUEUED)
+  nutrition              Json?
+  healthScore            Int?
+  healthAdvice           String[]           @default([])
+  alternativeSuggestions String[]           @default([])
+  summary                String?
   // Pre-formatted wire message (```json block + Markdown) so the mobile
   // render path stays identical to the old synchronous endpoint.
-  message     String?
-  error       String?
-  model       String?
-  promptTokens Int?
-  completionTokens Int?
-  durationMs  Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  completedAt DateTime?
+  message                String?
+  error                  String?
+  model                  String?
+  promptTokens           Int?
+  completionTokens       Int?
+  durationMs             Int?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  completedAt            DateTime?
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([status])
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
 }

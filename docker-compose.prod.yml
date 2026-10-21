@@ -1,28 +1,3 @@
-# NutriSnap production stack — mirrors the studybuddy VPS setup:
-# Postgres + Redis + the server image in three roles (api / worker /
-# one-shot migrate), all on the `nutrisnap-net` bridge; only `api` also
-# joins the external `caddy_network` so Caddy can reverse-proxy it.
-#
-# All config comes from server/.env.production (see server/.env.example):
-#   POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB  → consumed by postgres
-#   REDIS_PASSWORD (optional)                        → consumed by redis
-#   DATABASE_URL  → must point at the compose service, e.g.
-#                   postgresql://myuser:mypassword@postgres:5432/nutrisnap
-#   REDIS_URL     → e.g. redis://redis:6379
-#                   (or redis://:mypassword@redis:6379 when REDIS_PASSWORD is set)
-#
-# Image flow (CI/CD, see .github/workflows/docker-publish.yml):
-#   push to main → GitHub Actions builds + pushes irfan140/nutrisnap-server →
-#   VPS pulls and recreates. The `build:` block below is only for local
-#   prod-like builds; the VPS deploys with `pull` + `up -d` (no --build).
-#
-# Setup on the VPS (/opt/apps/nutrisnap):
-#   1. Create server/.env.production (chmod 600).
-#   2. First deploy: docker compose -f docker-compose.prod.yml pull && \
-#      docker compose -f docker-compose.prod.yml up -d
-#   3. Caddyfile: `nutrisnap-server.irfan.bond { reverse_proxy nutrisnap-server:3000 }`,
-#      then reload Caddy. curl https://nutrisnap-server.irfan.bond/health.
-
 name: nutrisnap-prod
 
 x-nutrisnap-server: &nutrisnap-server

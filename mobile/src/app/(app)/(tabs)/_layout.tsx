@@ -76,15 +76,6 @@ const Layout = () => {
         }}
       />
       <Tabs.Screen
-        name="settings"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color, size }) => (
-            <AntDesign name="setting" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",

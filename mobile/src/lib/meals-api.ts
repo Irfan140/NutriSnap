@@ -280,37 +280,6 @@ export async function deleteMealAnalysis(
 }
 
 /**
- * Erases the whole account (meals, photos, profile). Resolves on 204;
- * throws `AUTH_EXPIRED` or a user-facing Error.
- */
-export async function deleteAccount(
-  apiBaseUrl: string,
-  getToken: () => Promise<string | null>,
-): Promise<void> {
-  const token = await getToken();
-  if (!token) {
-    throw authExpired();
-  }
-
-  const res = await fetch(`${apiBaseUrl}/account`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (res.status === 401) {
-    throw authExpired();
-  }
-  if (!res.ok) {
-    let payload: unknown = null;
-    try {
-      payload = await res.json();
-    } catch {
-      // Fall through to the generic message below.
-    }
-    throw new UserFacingError(errorMessageOf(payload, `Account deletion failed (${res.status}).`));
-  }
-}
-
-/**
  * Fetches one analysis by id (detail screen). Throws `AUTH_EXPIRED` or a
  * user-facing Error. Non-terminal states are returned, never thrown.
  */

@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -75,8 +76,22 @@ function HowToStep({ colors, icon, tint, title, description, isLast = false }: H
 }
 
 export default function HomeScreen() {
-  const { colors, cardShadow, buttonShadow, isDark, setThemeMode } = useTheme();
+  const { colors, cardShadow, buttonShadow, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { data: session } = authClient.useSession();
+  const user = session?.user;
+  const avatarUri = user?.image ?? null;
+  const avatarInitials = (() => {
+    const source = user?.name ?? user?.email ?? "";
+    const letters = source
+      .split(" ")
+      .map((part) => part.charAt(0))
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+    return letters !== "" ? letters : "N";
+  })();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageDims, setImageDims] = useState<{ width: number; height: number } | null>(null);
   const attemptRef = useRef(0);
@@ -102,6 +117,11 @@ export default function HomeScreen() {
     setSelectedImage(null);
     setImageDims(null);
     resetResults();
+  };
+
+  const openSettings = () => {
+    void Haptics.selectionAsync();
+    router.push("/settings");
   };
 
   const showFailure = (message: string) => {
@@ -524,27 +544,26 @@ export default function HomeScreen() {
         ) : null}
       </ScrollView>
 
-      {/* Theme toggle button */}
+      {/* Account avatar — opens Settings */}
       <TouchableOpacity
         style={[
-          styles.themeToggle,
-          { backgroundColor: colors.surface },
-          cardShadow,
+          styles.avatarButton,
+          { backgroundColor: avatarUri ? "transparent" : colors.primarySoft, borderColor: colors.border },
         ]}
-        activeOpacity={0.7}
-        onPress={() => {
-          void Haptics.selectionAsync();
-          setThemeMode(isDark ? "light" : "dark");
-        }}
+        activeOpacity={0.75}
+        onPress={openSettings}
         accessibilityRole="button"
-        accessibilityLabel={isDark ? "Switch to light theme" : "Switch to dark theme"}
+        accessibilityLabel="Open settings"
+        accessibilityHint="Opens theme and app info settings"
         hitSlop={8}
       >
-        <Ionicons
-          name={isDark ? "sunny-outline" : "moon-outline"}
-          size={22}
-          color={isDark ? "#FBBF24" : colors.primaryDark}
-        />
+        {avatarUri ? (
+          <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+        ) : (
+          <BodySemibold style={{ color: colors.primaryDark, fontSize: 15 }}>
+            {avatarInitials}
+          </BodySemibold>
+        )}
       </TouchableOpacity>
 
       {/* Photo picker FAB — floats above the tab bar */}
@@ -692,16 +711,19 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     marginTop: 20,
   },
-  themeToggle: {
+  avatarButton: {
     position: "absolute",
     top: 60,
     right: 24,
     width: 44,
     height: 44,
     borderRadius: radius.full,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
+  avatarImage: { width: "100%", height: "100%" },
   fab: {
     position: "absolute",
     right: 20,

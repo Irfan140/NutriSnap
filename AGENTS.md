@@ -27,8 +27,9 @@ NutriSnap/
 │   │   │   ├── _layout.tsx # Root: ThemeProvider + OTA prompt + QueryClientProvider (auth gating lives in (auth)/(app) layouts)
 │   │   │   ├── (auth)/     # Unauthenticated: Google-only sign-in (native SDK)
 │   │   │   └── (app)/      # Authenticated gate (redirect via authClient.useSession)
-│   │   │       └── (tabs)/ # Tabs: index (Home/analysis), history, profile, settings
+│   │   │       └── (tabs)/ # Tabs: index (Home/analysis), history, profile
 │   │   │       └── meal/[id].tsx # History detail (stack screen, reuses MealResultCard)
+│   │   │       └── settings.tsx # Stack screen opened from the Home avatar (theme, app info)
 │   │   ├── components/     # PrimaryButton, FormInput, Typography, OTAUpdatePrompt, GoogleSignInButton, MealResultCard
 │   │   ├── hooks/          # useOTAUpdate + data hooks (useAnalyzeMeal/History/Detail/Stats/DeleteMeal)
 │   │   ├── lib/            # auth.ts (Better Auth client + getSessionToken), nutrition.ts (response parsing), meals-api.ts (API schemas + fetchers), meal-image.ts (normalize), query-client.ts, server-url.ts
@@ -389,7 +390,7 @@ Run **only** checks that exist; skip absent ones (no tests).
   - Profile stats card shows totals, average score, streaks (zeros + hint when empty).
   - Meal detail delete removes the row (list refreshes on return).
   - Sign-out clears the session (restart the app → still signed out); session survives app restart while signed in (SecureStore).
-  - Tab press triggers haptics, theme toggle persists via SecureStore.
+  - Tab press triggers haptics; the Home top-right avatar opens Settings (stack screen) and the theme picked there (System/Light/Dark) persists via SecureStore. No Settings tab in the tab bar.
 - [ ] **Web manual** — `bun run dev` loads without errors; home sections, `#/privacy`, and `#/delete-account` all render; header/footer nav works on mobile (hamburger) and desktop; `bun run build` + `bun run lint` pass clean.
 - [ ] **No secrets/ignored files staged** — `git status --ignored` shows `.env.local`/`.agents/` not staged.
 - [ ] **No `AGENTS.md` invented conventions** — every rule references an existing file/pattern.

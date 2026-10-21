@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { H1, H3, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
+import { H3, Body, BodySemibold, Caption } from "@/src/components/Typography";
 import { useTheme, radius } from "@/src/theme/index";
 
 export default function SettingsScreen() {
@@ -42,14 +42,9 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 88 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <H1>Settings</H1>
-          <Subtitle style={{ marginTop: 4 }}>Customize your experience</Subtitle>
-        </View>
-
         {/* Appearance Section */}
         <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
           <View style={styles.sectionHeader}>
@@ -166,7 +161,6 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 40 },
-  header: { marginBottom: 24 },
   card: {
     borderRadius: radius.xl,
     padding: 24,

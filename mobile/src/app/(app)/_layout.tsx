@@ -32,6 +32,15 @@ const Layout = () => {
           headerTitleStyle: { color: colors.textPrimary },
         }}
       />
+      <Stack.Screen
+        name="settings"
+        options={{
+          title: "Settings",
+          headerStyle: { backgroundColor: colors.surface },
+          headerTintColor: colors.primary,
+          headerTitleStyle: { color: colors.textPrimary },
+        }}
+      />
     </Stack>
   );
 };

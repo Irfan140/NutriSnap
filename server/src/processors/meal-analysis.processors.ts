@@ -98,6 +98,17 @@ export async function processMealAnalysis(job: Job<MealAnalysisJobData>): Promis
       } catch (markError) {
         logger.error({ err: markError, analysisId }, "Failed to record terminal job failure");
       }
+    } else if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
+      // Last attempt exhausted: record the failure on the row now so the
+      // polling client sees FAILED instead of waiting for the sweep.
+      try {
+        await markAnalysisFailed(
+          analysisId,
+          "Analysis failed due to a temporary network error. Please try again.",
+        );
+      } catch (markError) {
+        logger.error({ err: markError, analysisId }, "Failed to record exhausted-attempts failure");
+      }
     }
     throw error;
   }

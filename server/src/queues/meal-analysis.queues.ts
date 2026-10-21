@@ -22,7 +22,9 @@ export function getMealAnalysisQueue(): Queue<MealQueueJobData> {
 export async function enqueueMealAnalysis(data: MealAnalysisJobData): Promise<string> {
   const job = await getMealAnalysisQueue().add("analyze", data, {
     jobId: data.analysisId,
-    attempts: 2,
+    // 5s/10s/20s exponential backoff (~35s tolerance) absorbs transient R2 or
+    // network blips without outliving the client's 4-minute poll window.
+    attempts: 4,
     backoff: { type: "exponential", delay: 5_000 },
     removeOnComplete: 100,
     removeOnFail: 500,

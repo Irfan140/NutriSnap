@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
@@ -17,7 +17,6 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import PrimaryButton from "@/src/components/PrimaryButton";
 import { H1, H3, Subtitle, Body, BodySemibold, Caption } from "@/src/components/Typography";
 import { authClient } from "@/src/lib/auth";
-import { useDeleteAccount } from "@/src/hooks/useDeleteAccount";
 import { useMealStats } from "@/src/hooks/useMealStats";
 import { isAuthExpired } from "@/src/lib/query-client";
 import { healthScoreColor, useTheme, radius } from "@/src/theme/index";
@@ -64,7 +63,6 @@ const Profile = () => {
   const { colors, cardShadow } = useTheme();
   const insets = useSafeAreaInsets();
   const statsQuery = useMealStats();
-  const deleteAccountMutation = useDeleteAccount();
   const stats = statsQuery.data ?? null;
 
   // authClient methods are stable, but the ref keeps the established
@@ -98,46 +96,6 @@ const Profile = () => {
       { text: "Cancel", style: "cancel" },
       { text: "Sign Out", style: "destructive", onPress: () => signOut() },
     ]);
-  };
-
-  const confirmDeleteAccount = useCallback(() => {
-    deleteAccountMutation.mutate(undefined, {
-      onError: (err) => {
-        if (isAuthExpired(err)) {
-          signOutRef.current();
-          return;
-        }
-        Alert.alert(
-          "Delete failed",
-          err instanceof Error ? err.message : "Could not delete your account.",
-        );
-      },
-    });
-  }, [deleteAccountMutation]);
-
-  const handleDeleteAccount = () => {
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert(
-      "Delete account?",
-      "This permanently deletes your meals, photos, stats and profile. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Continue",
-          style: "destructive",
-          onPress: () => {
-            Alert.alert("Last chance", "Delete everything and sign out?", [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Delete everything",
-                style: "destructive",
-                onPress: () => void confirmDeleteAccount(),
-              },
-            ]);
-          },
-        },
-      ],
-    );
   };
 
   const openSupportEmail = useCallback(async (subject: string, body: string) => {
@@ -370,28 +328,7 @@ const Profile = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Danger zone */}
-        <View style={[styles.card, { backgroundColor: colors.surface }, cardShadow]}>
-          <H3 style={styles.sectionTitle}>Danger zone</H3>
-          <TouchableOpacity
-            style={[styles.menuRow, { borderBottomWidth: 0 }]}
-            activeOpacity={0.7}
-            onPress={handleDeleteAccount}
-            accessibilityRole="button"
-            accessibilityLabel="Delete account"
-            accessibilityHint="Permanently removes all your data"
-            hitSlop={4}
-          >
-            <View style={[styles.menuIcon, { backgroundColor: colors.dangerSoft }]}>
-              <Ionicons name="trash-outline" size={20} color={colors.danger} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <BodySemibold style={{ color: colors.danger }}>Delete account</BodySemibold>
-              <Caption dim>Permanently remove all your data</Caption>
-            </View>
-          </TouchableOpacity>
-        </View>
-
+        {/* Sign out */}
         <PrimaryButton
           label="Sign Out"
           icon="log-out-outline"

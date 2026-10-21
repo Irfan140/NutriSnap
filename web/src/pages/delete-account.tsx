@@ -8,7 +8,7 @@ const ERASED_ITEMS = [
   "Meal photos in private storage",
   "Nutrition reports and history",
   "Stats, streaks, and profile data",
-  "Your Clerk authentication account",
+  "Your Better Auth account (Google sign-in)",
 ] as const;
 
 export default function DeleteAccountPage() {
@@ -28,30 +28,7 @@ export default function DeleteAccountPage() {
         <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
             <h2 className="mb-3 text-xl font-bold text-slate-900">
-              Fastest: delete in the app
-            </h2>
-            <p className="mb-4 text-[15px] leading-relaxed text-slate-600">
-              Delete instantly under{" "}
-              <strong className="font-semibold text-slate-800">
-                Profile → Danger zone → Delete account
-              </strong>
-              . This removes your meals, photos, stats, and profile immediately.
-            </p>
-            <ul className="space-y-2.5">
-              {ERASED_ITEMS.map((item) => (
-                <li key={item} className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-50 text-red-600 ring-1 ring-red-100">
-                    <Check className="h-3 w-3" strokeWidth={3} />
-                  </span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <h2 className="mb-3 text-xl font-bold text-slate-900">
-              Prefer email? Request deletion
+              Request deletion by email
             </h2>
             <p className="mb-4 text-[15px] leading-relaxed text-slate-600">
               To delete your NutriSnap account and associated data, please send
@@ -72,8 +49,18 @@ export default function DeleteAccountPage() {
               </li>
             </ol>
             <p className="mb-5 text-[15px] leading-relaxed text-slate-600">
-              Once verified, we will delete your account and associated data.
+              Once verified, we will delete your account and the data below:
             </p>
+            <ul className="mb-5 space-y-2.5">
+              {ERASED_ITEMS.map((item) => (
+                <li key={item} className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-50 text-red-600 ring-1 ring-red-100">
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
             <div className="rounded-xl bg-emerald-50 p-5 text-center ring-1 ring-emerald-200">
               <Button
                 href={contactHref("Account Deletion Request")}

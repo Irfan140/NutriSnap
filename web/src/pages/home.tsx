@@ -133,7 +133,7 @@ const FAQS = [
   },
   {
     q: "How do I delete my account?",
-    a: "The fastest way is inside the app under Profile → Danger zone → Delete account, which removes your meals, photos, stats, and profile immediately. You can also request deletion by email — see the account deletion page for details.",
+    a: "Request deletion by email from the account deletion page — we verify your request and then remove your meals, photos, stats, and profile immediately.",
   },
   {
     q: "Where can I see the code or contribute?",

@@ -11,6 +11,15 @@ import { AUTH_URL } from "@/src/lib/server-url";
  */
 export const authClient = createAuthClient({
   baseURL: AUTH_URL,
+  // Ignore app focus events when revalidating the session (Better Auth
+  // refetches on every foreground by default). Opening the native
+  // camera/gallery picker backgrounds the app, and on return the forced
+  // `/get-session` revalidation flipped the session atom mid-analysis and
+  // ejected the user to sign-in while the analyze requests themselves kept
+  // succeeding server-side. Session validity is still enforced where it
+  // matters: cold start, sign-in/sign-out, and every API call (screens
+  // re-read the token per request and sign out on a real 401).
+  sessionOptions: { refetchOnWindowFocus: false },
   plugins: [
     // `scheme` must match the `scheme` in app.config.ts ("nutrisnap").
     expoClient({

@@ -17,6 +17,14 @@ export const authClient = createAuthClient({
       scheme: "nutrisnap",
       storagePrefix: "nutrisnap",
       storage: SecureStore,
+      // Without this the plugin caches the last `get-session` payload in
+      // SecureStore and hydrates it on cold start (before the server
+      // validates), so a session wiped server-side (DB reset) still shows
+      // the app as signed in until some screen's API call 401s and
+      // `signOut()` clears the cache. Disabling the cache forces every
+      // cold start to validate the persisted cookie against the server —
+      // a dead session then redirects to sign-in immediately.
+      disableCache: true,
     }),
   ],
 });
